@@ -10,12 +10,16 @@
   --font-display: "Inter", "SF Pro Display", system-ui, -apple-system, sans-serif;
 
   /* Brand & accent */
+  --color-brand: #3D101A; /* Color principal de la marca  - borravino - */
+  --color-brand-dark: #2A0A11;
+  --color-brand-light: #5C1A27;
+  
   --color-primary: #533afd;
   --color-primary-deep: #4434d4;
   --color-primary-press: #2e2b8c;
   --color-primary-soft: #665efd;
   --color-primary-subdued: #b9b9f9;
-  --color-brand-dark: #1c1e54;
+  
   --color-ruby: #ea2261;
   --color-magenta: #f96bee;
   --color-lemon: #9b6829;
@@ -32,7 +36,7 @@
   --color-ink-secondary: #273951;
   --color-ink-mute: #64748d;
 
-  /* Semánticos de dashboard (DESIGN.md: los estados viven en la UI de producto, no en marketing) */
+  /* Semánticos de dashboard */
   --color-state-warn: #92400e;
   --color-state-warn-bg: #fef3c7;
   --color-state-ok: #15803d;
@@ -58,7 +62,7 @@
     rgba(0, 55, 112, 0.08) 0 8px 24px,
     rgba(0, 55, 112, 0.04) 0 2px 6px;
 
-  /* Tipos display (DESIGN.md: peso 300 + tracking negativo) */
+  /* Tipos display */
   --text-display-xxl: 56px;
   --text-display-xxl--line-height: 1.03;
   --text-display-xxl--letter-spacing: -1.4px;
@@ -86,7 +90,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Toda celda de dinero/números usa cifras tabulares (DESIGN.md §typography) */
+/* Toda celda de dinero/números usa cifras tabulares */
 @utility tnum {
   font-feature-settings: "tnum";
   letter-spacing: -0.42px;
