@@ -17,6 +17,7 @@ const buttonVariants = cva(
         onDark: 'bg-brand-dark text-white hover:bg-primary-press',
         ghost: 'text-ink-secondary hover:bg-canvas-soft',
         danger: 'bg-state-danger text-white hover:opacity-90',
+        brand: 'bg-brand text-white hover:bg-brand-dark active:opacity-90', // 👈 Nueva variante corporativa
       },
       size: {
         sm: 'h-9 px-4 text-sm',

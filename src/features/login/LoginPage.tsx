@@ -1,5 +1,5 @@
 /**
- * LoginPage — Página de inicio de sesión de SMT Catering (Split-Screen con Sello Institucional).
+ * LoginPage — Página de inicio de sesión de SMT Catering (Split-Screen con componentes reutilizables).
  */
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
@@ -8,12 +8,12 @@ import { LogIn, Zap, Lock, Award, Mail, KeyRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { useAuthStore } from '@/stores/authStore'
 import { ForgotPasswordModal } from '@/features/login/ForgotPasswordModal'
 import { RegisterModal } from '@/features/login/RegisterModal'
 
-// Importá tu logo (ajustá la ruta según dónde lo tengas guardado en src/ o public/)
-import logoEmpresa from '@/assets/Logo empresa.jpeg' // o '/Logo empresa.jpeg' si está en public
+import logoEmpresa from '@/assets/Logo empresa.jpeg'
 
 export function LoginPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -25,7 +25,6 @@ export function LoginPage() {
   const [showForgot, setShowForgot] = useState(false)
   const [showRegister, setShowRegister] = useState(false)
 
-  /* Si ya está autenticado, redirigir al cotizador */
   if (isAuthenticated) {
     return <Navigate to="/" replace />
   }
@@ -44,11 +43,11 @@ export function LoginPage() {
       {/* PANEL IZQUIERDO: Branding, Título y Propuesta de Valor    */}
       {/* ========================================================= */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-brand p-12 text-white relative overflow-hidden">
-        {/* Badge superior */}
+        {/* Badge superior reutilizado */}
         <div>
-          <span className="inline-flex items-center rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium tracking-wide text-white/90 backdrop-blur-sm border border-white/10">
+          <Badge variant="outline" className="bg-white/10 text-white/90 border-white/10 px-4 py-1.5 backdrop-blur-sm">
             + Servicio Empresarial Premium
-          </span>
+          </Badge>
         </div>
 
         {/* Contenido Central */}
@@ -99,7 +98,7 @@ export function LoginPage() {
       {/* ========================================================= */}
       {/* PANEL DERECHO: Pestañas y Formulario de Autenticación     */}
       {/* ========================================================= */}
-      <div className="flex w-full lg:w-1/2 items-center justify-center p-6 sm:p-12 bg-white">
+      <div className="flex w-full lg:w-1/2 items-center justify-center p-6 sm:p-12 bg-white relative">
         <div className="w-full max-w-md space-y-8">
           
           {/* Pestañas de Navegación / Modos */}
@@ -182,11 +181,12 @@ export function LoginPage() {
               </p>
             )}
 
-            {/* CTA principal */}
+            {/* CTA principal reutilizando la variante brand del Button */}
             <Button
               type="submit"
+              variant="brand"
               size="lg"
-              className="w-full gap-2 bg-brand hover:bg-brand-dark text-white transition-colors py-6 shadow-md"
+              className="w-full gap-2 py-6 shadow-md"
               disabled={!usernameInput.trim() || !pass}
             >
               <LogIn className="h-4 w-4" />
@@ -206,9 +206,8 @@ export function LoginPage() {
             </button>
           </p>
         </div>
-        {/* ===================================================== */}
-        {/* SELLO / LOGO INFERIOR DERECHO                         */}
-        {/* ===================================================== */}
+
+        {/* Sello / Logo institucional abajo a la derecha */}
         <div className="absolute bottom-6 right-6 z-10 pointer-events-none">
           <div className="bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-lg border border-white/20 opacity-85 hover:opacity-100 transition-opacity">
             <img 
