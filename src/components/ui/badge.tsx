@@ -2,7 +2,7 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
-export type BadgeVariant = 'warn' | 'ok' | 'info' | 'neutral' | 'danger' | 'primary'
+export type BadgeVariant = 'warn' | 'ok' | 'info' | 'neutral' | 'danger' | 'primary' | 'outline'
 
 const variants: Record<BadgeVariant, string> = {
   warn: 'bg-state-warn-bg text-state-warn',
@@ -11,6 +11,7 @@ const variants: Record<BadgeVariant, string> = {
   neutral: 'bg-state-neutral-bg text-state-neutral',
   danger: 'bg-state-danger-bg text-state-danger',
   primary: 'bg-primary-subdued text-primary-deep',
+  outline: 'border border-current bg-transparent',
 }
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {

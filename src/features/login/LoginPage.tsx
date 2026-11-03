@@ -1,157 +1,202 @@
 /**
- * LoginPage — Página de inicio de sesión de SMT Catering.
- *
- * Pantalla completa que presenta un
- * card centrado con los campos de usuario y contraseña.
- *
- * Credenciales por defecto: admin / admin (gestionadas por authStore).
- *
- * Flujo:
- *  1. Usuario ingresa credenciales → submit del form.
- *  2. authStore.login() valida → si es correcto, navega a "/" (cotizador).
- *  3. Si falla, muestra mensaje de error inline (sin modal).
- *  4. Enlace "¿Olvidaste tu contraseña?" abre ForgotPasswordModal (dos pasos).
- *  5. Enlace "¿No tenés cuenta?" abre RegisterModal para nuevos clientes B2B.
+ * LoginPage — Página de inicio de sesión y contenedor de accesos B2B.
  */
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
-import { LogIn } from 'lucide-react'
+import { LogIn, Zap, Lock, Award, Mail, KeyRound } from 'lucide-react'
 
-import { GradientMesh } from '@/components/layout/GradientMesh'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { useAuthStore } from '@/stores/authStore'
 import { ForgotPasswordModal } from '@/features/login/ForgotPasswordModal'
-import { RegisterModal } from '@/features/login/RegisterModal'
+import { RegisterForm } from '@/features/login/RegisterForm' // 👈 Importamos el nuevo componente
+
+import logoEmpresa from '@/assets/Logo empresa.jpeg'
 
 export function LoginPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const login = useAuthStore((s) => s.login)
 
+  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login')
+
+  /* Estados Login */
   const [usernameInput, setUsernameInput] = useState('')
   const [pass, setPass] = useState('')
-  const [error, setError] = useState(false)
-  const [showForgot, setShowForgot] = useState(false)
-  const [showRegister, setShowRegister] = useState(false)
+  const [loginError, setLoginError] = useState(false)
 
-  /* Si ya está autenticado, redirigir al cotizador */
+  const [showForgot, setShowForgot] = useState(false)
+
   if (isAuthenticated) {
     return <Navigate to="/" replace />
   }
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleLoginSubmit = async (e: FormEvent) => {
     e.preventDefault()
     const ok = await login(usernameInput.trim(), pass)
     if (!ok) {
-      setError(true)
+      setLoginError(true)
     }
   }
 
   return (
-    <div className="relative flex min-h-dvh items-center justify-center bg-canvas px-4">
-      {/* Gradient Mesh atmosférico a pantalla completa (firma de marca) */}
-      <GradientMesh />
+    <div className="flex min-h-dvh w-full flex-col lg:flex-row bg-white">
+      {/* PANEL IZQUIERDO: Branding y Propuesta de Valor */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-brand p-12 text-white relative overflow-hidden">
+        <div>
+          <Badge variant="outline" className="bg-white/10 text-white/90 border-white/10 px-4 py-1.5 backdrop-blur-sm">
+            + Servicio Empresarial Premium
+          </Badge>
+        </div>
 
-      {/* Card de login — Level 2 shadow, rounded-lg 12px (DESIGN.md §Cards) */}
-      <div className="relative z-10 w-full max-w-sm rounded-lg border border-hairline bg-canvas p-8 shadow-[rgba(0,55,112,0.08)_0_8px_24px,rgba(0,55,112,0.04)_0_2px_6px]">
-        {/* Branding */}
-        <div className="mb-8 text-center">
-          <h1 className="text-[32px] font-light leading-[1.1] tracking-[-0.64px] text-ink">
-            SMT Catering
+        <div className="my-auto max-w-lg space-y-4">
+          <h1 className="text-4xl xl:text-5xl font-light tracking-tight leading-[1.1]">
+            Cotizador <br />
+            <span className="font-semibold">Empresarial</span>
           </h1>
-          <p className="mt-2 text-[15px] font-light text-ink-mute">
-            Iniciá sesión para continuar
+          <p className="text-sm xl:text-base font-light text-white/80 leading-relaxed">
+            Diseñá tu evento corporativo ideal con nuestra plataforma de cotización inteligente. Presupuesto en tiempo real, sin intermediarios.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Campo usuario */}
-          <div className="space-y-1.5">
-            <Label htmlFor="login-user">Usuario</Label>
-            <Input
-              id="login-user"
-              type="text"
-              placeholder="Ingresá tu usuario"
-              autoComplete="username"
-              autoFocus
-              value={usernameInput}
-              onChange={(e) => {
-                setUsernameInput(e.target.value)
-                setError(false)
-              }}
-            />
+        <div className="grid grid-cols-1 gap-4 pt-8 border-t border-white/15 text-xs xl:text-sm text-white/80">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-md bg-white/10 text-white"><Zap className="h-4 w-4" /></div>
+            <div><p className="font-medium text-white">Cotización instantánea</p><p className="text-white/60 text-xs">Presupuesto detallado en minutos</p></div>
           </div>
-
-          {/* Campo contraseña */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="login-pass">Contraseña</Label>
-              {/* Enlace de recuperación — punto 3 de ISSUES.md §Login & Autenticación */}
-              <button
-                type="button"
-                onClick={() => setShowForgot(true)}
-                className="text-[12px] font-normal text-ink-mute underline-offset-2 transition-colors hover:text-primary hover:underline"
-              >
-                ¿Olvidaste tu contraseña?
-              </button>
-            </div>
-            <Input
-              id="login-pass"
-              type="password"
-              placeholder="Ingresá tu contraseña"
-              autoComplete="current-password"
-              value={pass}
-              onChange={(e) => {
-                setPass(e.target.value)
-                setError(false)
-              }}
-            />
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-md bg-white/10 text-white"><Lock className="h-4 w-4" /></div>
+            <div><p className="font-medium text-white">Precio congelado</p><p className="text-white/60 text-xs">La seña asegura tu tarifa actual</p></div>
           </div>
-
-          {/* Mensaje de error (inline, sin modal) */}
-          {error && (
-            <p role="alert" className="text-sm text-state-danger">
-              Usuario o contraseña incorrectos, o servidor no disponible.
-            </p>
-          )}
-
-          {/* CTA — button-primary-pill (DESIGN.md §Buttons) */}
-          <Button
-            type="submit"
-            variant="primary"
-            size="lg"
-            className="w-full gap-2"
-            disabled={!usernameInput.trim() || !pass}
-          >
-            <LogIn className="h-4 w-4" />
-            Iniciar sesión
-          </Button>
-        </form>
-
-        {/* Enlace de registro para nuevos clientes */}
-        <p className="mt-6 text-center text-[13px] font-normal tracking-[-0.39px] text-ink-mute">
-          ¿No tenés cuenta?{' '}
-          <button
-            type="button"
-            onClick={() => setShowRegister(true)}
-            className="font-medium text-primary underline-offset-2 transition-colors hover:underline"
-          >
-            Registrate
-          </button>
-        </p>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-md bg-white/10 text-white"><Award className="h-4 w-4" /></div>
+            <div><p className="font-medium text-white">Chefs certificados</p><p className="text-white/60 text-xs">Equipo de servicio profesional incluido</p></div>
+          </div>
+        </div>
       </div>
 
-      {/* Modal de recuperación de contraseña */}
-      {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
+      {/* PANEL DERECHO: Pestañas y Formularios */}
+      <div className="flex w-full lg:w-1/2 items-center justify-center p-6 sm:p-12 bg-white relative overflow-y-auto">
+        <div className="w-full max-w-md space-y-6 my-auto py-8">
+          
+          {/* Pestañas de Navegación */}
+          <div className="flex rounded-lg bg-gray-100 p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('login')}
+              className={`flex-1 rounded-md py-2.5 text-xs font-semibold transition-all ${
+                activeTab === 'login' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Iniciar Sesión
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('register')}
+              className={`flex-1 rounded-md py-2.5 text-xs font-semibold transition-all ${
+                activeTab === 'register' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Registrarse
+            </button>
+          </div>
 
-      {/* Modal de registro de nuevo cliente B2B */}
-      {showRegister && (
-        <RegisterModal
-          onClose={() => setShowRegister(false)}
-          onSuccess={() => setShowRegister(false)}
-        />
-      )}
+          {/* VISTA 1: LOGIN */}
+          {activeTab === 'login' && (
+            <form onSubmit={handleLoginSubmit} className="space-y-5 pt-2">
+              <div className="space-y-2">
+                <Label htmlFor="login-user" className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+                  Email Corporativo
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="login-user"
+                    type="text"
+                    placeholder="responsable@empresa.com"
+                    autoComplete="username"
+                    autoFocus
+                    className="pl-10"
+                    value={usernameInput}
+                    onChange={(e) => { setUsernameInput(e.target.value); setLoginError(false) }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="login-pass" className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+                    Contraseña
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() => setShowForgot(true)}
+                    className="text-xs font-normal text-gray-500 hover:text-brand hover:underline underline-offset-2 transition-colors"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
+                </div>
+                <div className="relative">
+                  <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="login-pass"
+                    type="password"
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    className="pl-10"
+                    value={pass}
+                    onChange={(e) => { setPass(e.target.value); setLoginError(false) }}
+                  />
+                </div>
+              </div>
+
+              {loginError && (
+                <p role="alert" className="text-sm text-red-600 bg-red-50 p-3 rounded-md border border-red-200">
+                  Usuario o contraseña incorrectos, o servidor no disponible.
+                </p>
+              )}
+
+              <Button
+                type="submit"
+                variant="brand"
+                size="lg"
+                className="w-full gap-2 py-6 shadow-md"
+                disabled={!usernameInput.trim() || !pass}
+              >
+                <LogIn className="h-4 w-4" />
+                Iniciar Sesión
+              </Button>
+
+              <p className="text-center text-xs text-gray-500 pt-2">
+                ¿No tenés cuenta?{' '}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('register')}
+                  className="font-semibold text-brand hover:underline underline-offset-2"
+                >
+                  Registrate aquí
+                </button>
+              </p>
+            </form>
+          )}
+
+          {/* VISTA 2: REGISTRO (Importado del archivo separado) */}
+          {activeTab === 'register' && (
+            <RegisterForm onSwitchToLogin={() => setActiveTab('login')} />
+          )}
+
+        </div>
+
+        {/* Sello institucional */}
+        <div className="absolute bottom-6 right-6 z-10 pointer-events-none hidden sm:block">
+          <div className="bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-lg border border-white/20 opacity-85 hover:opacity-100 transition-opacity">
+            <img src={logoEmpresa} alt="SMT Catering Sello" className="h-12 w-auto object-contain" />
+          </div>
+        </div>
+      </div>
+
+      {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
     </div>
   )
 }
