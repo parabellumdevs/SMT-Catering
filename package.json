@@ -29,6 +29,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "dotenv": "^18.0.9",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.48.0",
     "pg": "^8.23.1",
     "react": "^19.2.8",
@@ -41,13 +42,13 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.13.3",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "esbuild": "^0.28.2",
     "oxlint": "^1.81.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",

@@ -1,120 +1,182 @@
-import { Printer } from 'lucide-react'
+/**
+ * ComandaListPage — Módulo de comandas técnicas de cocina.
+ * Diseño refinado: Cards en blanco puro con acento borravino y estructura moderna.
+ */
+import { Printer, Calendar, MapPin, Download, Users, Clock, AlertTriangle } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
 import { PageHeader } from '@/components/layout/AppShell'
 import { Button } from '@/components/ui/button'
-import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table'
 import { ComandaTicket } from '@/features/production/components/ComandaTicket'
 import { DownloadButton } from '@/features/production/components/DownloadButton'
 import { useEvents } from '@/features/dashboard/hooks/useEventsSummary'
-import {
-  collectDietaryAlerts,
-  consolidateByStation,
-  generateKitchenExport,
-} from '@/features/production/utils/generateKitchenExport'
-import { daysUntil, isWithinProductionWindow } from '@/lib/utils'
+import { generateKitchenExport } from '@/features/production/utils/generateKitchenExport'
+import { isWithinProductionWindow } from '@/lib/utils'
 
-/**
- * Módulo 2 — Comandas Técnicas de Producción para Cocina y Planta Centralizada.
- *
- * Invariantes Críticas de Negocio (AGENTS.md):
- * 1. Ventana de producción: los eventos se planifican con 30 días de anticipación (`isWithinProductionWindow`).
- * 2. Cero datos financieros: JAMÁS mostrar precios, márgenes de ganancia ni estados de cobro.
- *    La cocina solo debe visualizar volúmenes netos, raciones por estación, alérgenos y notas de salud.
- * 3. Preparado para impresión física (`@media print` con `.no-print`) para despacho en planta.
- */
+function formatEventRestrictions(event: any): string {
+  const parts: string[] = []
+  if (event.celiacos > 0) parts.push(event.celiacos === 1 ? '1 celíaco' : `${event.celiacos} celíacos`)
+  if (event.vegetarianos > 0) parts.push(event.vegetarianos === 1 ? '1 vegetariano' : `${event.vegetarianos} vegetarianos`)
+  if (event.veganos > 0) parts.push(event.veganos === 1 ? '1 vegano' : `${event.veganos} veganos`)
+  if (event.alergias) parts.push(`alergias: ${event.alergias}`)
+  if (event.observaciones) parts.push(event.observaciones)
+
+  return parts.length > 0 ? parts.join(', ') : 'Sin restricciones registradas'
+}
+
 export function ComandaListPage() {
   const { data: events = [] } = useEvents()
+  
   const windowed = events.filter(
     (e) => e.status !== 'Cancelado' && isWithinProductionWindow(e.eventDate),
   )
-  const byStation = consolidateByStation(events)
-  const alerts = collectDietaryAlerts(events)
+
+  const eventsByDate = windowed.reduce((acc, event) => {
+    const dateKey = event.eventDate
+    if (!acc[dateKey]) acc[dateKey] = []
+    acc[dateKey].push(event)
+    return acc
+  }, {} as Record<string, typeof windowed>)
 
   return (
     <>
       <div className="no-print">
         <PageHeader
-          title="Comanda técnica de producción"
-          description="Eventos con 30 días de anticipación — consolidado por estación para planta centralizada."
-          actions={
-            <>
-              <DownloadButton text={generateKitchenExport(events)} />
-              <Button onClick={() => window.print()}>
-                <Printer className="h-4 w-4" />
-                Imprimir
-              </Button>
-            </>
-          }
+          title="Comandas de cocina"
+          description="Preparaciones, cantidades y restricciones de los próximos servicios."
         />
       </div>
 
-      <section className="mb-8 rounded-lg border border-hairline bg-canvas p-6 shadow-1">
-        <h2 className="mb-4 text-heading-lg font-light text-ink">Raciones por estación</h2>
-        {byStation.length === 0 ? (
-          <p className="text-sm text-ink-mute">No hay eventos dentro de la ventana de 30 días.</p>
-        ) : (
-          <Table>
-            <THead>
-              <TR>
-                <TH>Estación</TH>
-                <TH className="text-right">Raciones netas</TH>
-                <TH>Eventos</TH>
-              </TR>
-            </THead>
-            <TBody>
-              {byStation.map((c) => (
-                <TR key={c.stationId}>
-                  <TD className="font-normal">{c.stationName}</TD>
-                  <TD className="text-right tnum">{c.totalRations}</TD>
-                  <TD className="text-ink-mute tnum">
-                    {c.events.map((e) => `${e.id} (${daysUntil(e.eventDate)}d)`).join(', ')}
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        )}
-      </section>
+      <div className="space-y-8">
+        {Object.entries(eventsByDate).map(([date, dateEvents]) => {
+          const formattedDate = new Date(date).toLocaleDateString('es-AR', {
+            weekday: 'long',
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          }).toUpperCase()
 
-      <section className="mb-8 rounded-lg border border-state-danger/30 bg-state-danger-bg p-6">
-        <h2 className="mb-3 text-heading-lg font-light text-state-danger">
-          Alertas de alérgenos y dietas
-        </h2>
-        {alerts.length === 0 ? (
-          <p className="text-sm text-ink-secondary">Sin restricciones en la ventana.</p>
-        ) : (
-          <ul className="space-y-2 text-sm text-ink">
-            {alerts.map((a) => (
-              <li key={a.eventId} className="tnum">
-                <span className="font-normal">{a.eventId}</span> {a.clientName} —{' '}
-                {[
-                  a.celiacos > 0 ? `celíacos x${a.celiacos}` : '',
-                  a.vegetarianos > 0 ? `vegetarianos x${a.vegetarianos}` : '',
-                  a.veganos > 0 ? `veganos x${a.veganos}` : '',
-                  a.alergias ? `alergias: ${a.alergias}` : '',
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+          const isSingleEvent = dateEvents.length === 1
 
-      <div className="space-y-6">
-        {windowed.map((e) => (
-          <ComandaTicket key={e.id} event={e} />
-        ))}
+          return (
+            <div key={date} className="rounded-2xl border border-gray-200/80 bg-gray-50/50 overflow-hidden shadow-sm">
+              {/* Header de la jornada */}
+              <div className="bg-brand px-6 py-3.5 text-white flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 rounded-md bg-white/10">
+                    <Calendar className="h-4 w-4 text-white" />
+                  </div>
+                  <h3 className="text-sm font-semibold tracking-wide uppercase">{formattedDate}</h3>
+                </div>
+                <span className="text-xs bg-white/10 text-white/90 px-3 py-1 rounded-full font-medium backdrop-blur-sm border border-white/10">
+                  {dateEvents.length} {dateEvents.length === 1 ? 'servicio' : 'servicios'}
+                </span>
+              </div>
+
+              {/* Grid de Cards */}
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                {dateEvents.map((e: any) => {
+                  const hasRestrictions =
+                    (e.celiacos && e.celiacos > 0) ||
+                    (e.vegetarianos && e.vegetarianos > 0) ||
+                    (e.veganos && e.veganos > 0) ||
+                    !!e.alergias
+
+                  return (
+                    <div 
+                      key={e.id} 
+                      className={`rounded-xl border border-gray-200 bg-white border-t-4 border-t-brand p-5 flex flex-col justify-between space-y-5 shadow-xs hover:shadow-md transition-shadow ${
+                        isSingleEvent ? 'md:col-span-2' : 'md:col-span-1'
+                      }`}
+                    >
+                      {/* Cabecera del evento */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
+                              Empresa
+                            </span>
+                            <h4 className="text-lg font-semibold text-gray-900 tracking-tight">
+                              {e.clientName}
+                            </h4>
+                          </div>
+                          
+                          <div className="flex gap-4 text-right">
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
+                                Invitados
+                              </span>
+                              <div className="flex items-center gap-1 text-sm font-semibold text-gray-800 tnum">
+                                <Users className="h-3.5 w-3.5 text-gray-400" />
+                                {e.guests}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
+                                Horario
+                              </span>
+                              <div className="flex items-center gap-1 text-sm font-semibold text-gray-800 tnum">
+                                <Clock className="h-3.5 w-3.5 text-gray-400" />
+                                {e.eventTime || '13:00'} hs
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Contenido: Islas + Restricciones */}
+                        <div className="space-y-2">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-xs font-semibold text-gray-500 min-w-28 shrink-0">
+                              Islas contratadas:
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {(e.islas || ['Entrada', 'Parrilla', 'Dulce']).map((isla: string) => (
+                                <span key={isla} className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                                  {isla}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-2 pt-1">
+                            <span className="text-xs font-semibold text-gray-500 min-w-28 shrink-0 pt-0.5">
+                              Restricciones:
+                            </span>
+                            <div className={`flex items-start gap-1.5 px-2.5 py-1.5 rounded-md text-xs w-full ${
+                              hasRestrictions 
+                                ? 'bg-amber-50 text-amber-900 border border-amber-200/70 font-medium' 
+                                : 'bg-gray-50 text-gray-500 border border-gray-100'
+                            }`}>
+                              {hasRestrictions && <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />}
+                              <span>{formatEventRestrictions(e.dietary)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Footer de la tarjeta */}
+                      <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+                        <div className="flex items-center gap-1.5 truncate text-gray-600">
+                          <MapPin className="h-3.5 w-3.5 shrink-0 text-brand" />
+                          <span className="truncate">{e.location || 'Av. Corrientes 1234, CABA'}</span>
+                        </div>
+                        <Button variant="brand" size="sm" className="gap-1.5 shrink-0 rounded-lg">
+                          <Download className="h-3.5 w-3.5" />
+                          Descargar comanda
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </>
   )
 }
 
-/**
- * Vista de Comanda Técnica Individual para un evento específico (`/comandas/:eventId`).
- * Permite imprimir la hoja de producción individual para la partida de cocina asignada.
- */
 export function ComandaDetailPage() {
   const { eventId } = useParams<{ eventId: string }>()
   const { data: events = [] } = useEvents()
