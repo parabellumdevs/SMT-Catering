@@ -2,8 +2,6 @@
  * ComandaTicket — Ficha de Comanda Técnica por Evento para Jefatura de Cocina.
  */
 import { MapPin, Download, Users, Clock, AlertTriangle } from 'lucide-react'
-import { jsPDF } from 'jspdf'
-
 import { Button } from '@/components/ui/button'
 import { stationById } from '@/lib/constants'
 import type { EventRecord } from '@/types/domain'
