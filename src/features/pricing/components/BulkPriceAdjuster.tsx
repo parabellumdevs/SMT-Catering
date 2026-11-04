@@ -69,7 +69,7 @@ export function BulkPriceAdjuster({ previewActive, onPreview, onConfirm, onCance
 
         {previewActive ? (
           <div className="flex gap-2">
-            <Button variant="primary" onClick={(e) => { e.preventDefault(); onConfirm() }}>
+            <Button variant="secondary" onClick={(e) => { e.preventDefault(); onConfirm() }}>
               Confirmar ajuste
             </Button>
             <Button variant="ghost" onClick={(e) => { e.preventDefault(); onCancel() }}>
@@ -77,7 +77,11 @@ export function BulkPriceAdjuster({ previewActive, onPreview, onConfirm, onCance
             </Button>
           </div>
         ) : (
-          <Button type="submit" disabled={!isValid}>
+          <Button 
+          type="submit" disabled={!isValid}
+          variant="brand" 
+          className="gap-1.5 shrink-0 rounded-lg"
+          >
             Previsualizar impacto
           </Button>
         )}
