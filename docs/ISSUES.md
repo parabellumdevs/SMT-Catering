@@ -101,7 +101,7 @@ Documento maestro de seguimiento de tareas completadas (incluyendo los hitos de 
 
 - [ ] **Validación de Ubicación y Radio de Cobertura (20 km)**
   - [x] Definir regla de distancia máxima $\le 20\text{ km}$ en esquema Zod ([`shared/schemas/quotation.schema.ts`](../shared/schemas/quotation.schema.ts)) y columna `distancia_km` en base de datos.
-  - [ ] Campo en frontend ([`QuotationPage.tsx`](../src/features/quotation/QuotationPage.tsx)) para ingresar dirección del evento.
+  - [X] Campo en frontend ([`QuotationPage.tsx`](../src/features/quotation/QuotationPage.tsx)) para ingresar dirección del evento.
   - [ ] Validación de distancia dentro del radio operativo de **20 km a la redonda** desde el punto base establecido (**Monserrat, Venezuela 1478, CABA**).
 - [ ] **Selector de Islas / Estaciones y Menú Oficial**
   - [ ] Actualizar en [`src/lib/constants.ts`](../src/lib/constants.ts) y [`server/db/seed.sql`](../server/db/seed.sql) las descripciones de las **5 estaciones gastronómicas** según el menú oficial del cliente:
@@ -120,7 +120,7 @@ Documento maestro de seguimiento de tareas completadas (incluyendo los hitos de 
 - [ ] **Fecha del Evento, Horarios & Disponibilidad**
   - [x] Definir reglas de validación en esquema Zod ([`shared/schemas/quotation.schema.ts`](../shared/schemas/quotation.schema.ts)) y servicio de cotización.
   - [x] Restringir la selección de fechas en el calendario exclusivamente a días **viernes, sábados y domingos** ([`AvailabilityCalendar.tsx`](../src/features/quotation/components/AvailabilityCalendar.tsx)).
-  - [ ] Unificar la antelación mínima de reserva (**14 / 15 días**) entre [`src/lib/constants.ts`](../src/lib/constants.ts) y [`shared/schemas/quotation.schema.ts`](../shared/schemas/quotation.schema.ts).
+  - [X] Unificar la antelación mínima de reserva (**14 / 15 días**) entre [`src/lib/constants.ts`](../src/lib/constants.ts) y [`shared/schemas/quotation.schema.ts`](../shared/schemas/quotation.schema.ts).
   - [ ] **Franja horaria y duración del servicio:**
     - [ ] Duración máxima del evento: **hasta 3 horas**.
     - [ ] El cliente debe seleccionar su horario dentro de la ventana operativa nocturna de **19:00 a 00:00 hs** (horario límite de finalización: 00:00 hs).
