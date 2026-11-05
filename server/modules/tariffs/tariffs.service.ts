@@ -1,11 +1,12 @@
-import { getDatabase } from '../../db/client'
-import type { Tariff } from '../../../shared/types/tariffs'
+import { getDatabase } from '../../db/client.ts'
 
 export class TariffsService {
-  static async listTariffs(): Promise<Tariff[]> {
-    const db = getDatabase()
-    const rows = db.prepare('SELECT * FROM tariffs WHERE is_active = 1').all() as any[]
-    return rows.map((r) => ({
+  static async list() {
+    const dbClient = getDatabase()
+    const rows = await dbClient.query(
+      'SELECT id, label, category, price_per_guest_cents, fixed_cents FROM tarifas WHERE is_active = 1',
+    )
+    return rows.map((r: any) => ({
       id: r.id,
       label: r.label,
       category: r.category,
@@ -14,12 +15,23 @@ export class TariffsService {
     }))
   }
 
-  static async updateTariff(id: string, pricePerGuestCents: number, fixedCents = 0): Promise<void> {
-    const db = getDatabase()
-    const stmt = db.prepare(
-      'UPDATE tariffs SET price_per_guest_cents = ?, fixed_cents = ? WHERE id = ?',
+  static async update(id: string, pricePerGuestCents: number, fixedCents?: number | null) {
+    const dbClient = getDatabase()
+    await dbClient.execute(
+      'UPDATE tarifas SET price_per_guest_cents = ?, fixed_cents = COALESCE(?, fixed_cents) WHERE id = ?',
+      [pricePerGuestCents, fixedCents ?? null, id],
     )
-    stmt.run(pricePerGuestCents, fixedCents, id)
+  }
+
+  static async bulkUpdate(list: Array<{ id: string; pricePerGuestCents: number; fixedCents?: number }>) {
+    const dbClient = getDatabase()
+    if (Array.isArray(list)) {
+      for (const t of list) {
+        await dbClient.execute('UPDATE tarifas SET price_per_guest_cents = ? WHERE id = ?', [
+          t.pricePerGuestCents,
+          t.id,
+        ])
+      }
+    }
   }
 }
-

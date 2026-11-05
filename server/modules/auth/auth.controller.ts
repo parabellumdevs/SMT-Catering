@@ -1,42 +1,90 @@
-import type { Request, Response } from '../../types/http'
-import { AuthService } from './auth.service'
-import { loginSchema, registerSchema } from '../../../shared/schemas/auth.schema'
+import type { Request, Response } from '../../types/http.ts'
+import { AuthService } from './auth.service.ts'
+import { extractAuthenticatedUser } from '../../middleware/authGuard.ts'
 
 export class AuthController {
   static async login(req: Request, res: Response): Promise<void> {
     try {
-      const data = loginSchema.parse(req.body)
-      const { user, token } = await AuthService.login(data)
+      const { usernameOrEmail, pass } = req.body || {}
+      const { user, token } = await AuthService.login(usernameOrEmail, pass)
 
-      res.cookie('smt_token', token, {
+      res.cookie('smt_session', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        path: '/',
         sameSite: 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000,
       })
 
       res.json({ user })
     } catch (error: any) {
-      res.status(400).json({ error: error.message || 'Error en inicio de sesión' })
+      if (error.message.startsWith('INHABILITADO:')) {
+        res.status(403).json({ error: error.message.replace('INHABILITADO: ', '') })
+        return
+      }
+      res.status(401).json({ error: error.message || 'Credenciales inválidas' })
     }
   }
 
   static async register(req: Request, res: Response): Promise<void> {
     try {
-      const data = registerSchema.parse(req.body)
-      const user = await AuthService.register(data)
-      res.status(201).json({ user })
+      const { user, token } = await AuthService.register(req.body || {})
+      res.cookie('smt_session', token, {
+        httpOnly: true,
+        path: '/',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      })
+      res.status(201).json({ success: true, user })
     } catch (error: any) {
-      res.status(400).json({ error: error.message || 'Error al registrar usuario' })
+      if (error.message.startsWith('DUPLICADO:')) {
+        res.status(409).json({ error: error.message.replace('DUPLICADO: ', '') })
+        return
+      }
+      res.status(400).json({ error: error.message || 'Error al registrar cliente' })
     }
   }
 
-  static async logout(_req: Request, res: Response): Promise<void> {
-    res.clearCookie('smt_token')
-    res.json({ message: 'Sesión finalizada correctamente' })
+  static async me(req: Request, res: Response): Promise<void> {
+    const authUser = req.user || extractAuthenticatedUser(req)
+    if (!authUser) {
+      res.json({ user: null })
+      return
+    }
+
+    res.json({
+      user: {
+        id: authUser.id,
+        username: authUser.username,
+        fullName: authUser.fullName,
+        email: authUser.email,
+        role: authUser.role,
+      },
+    })
   }
 
-  static async me(req: Request, res: Response): Promise<void> {
-    res.json({ user: req.user })
+  static async logout(_req: Request, res: Response): Promise<void> {
+    res.clearCookie('smt_session', { path: '/' })
+    res.clearCookie('smt_token', { path: '/' })
+    res.json({ success: true, message: 'Sesión finalizada correctamente' })
+  }
+
+  static async forgotPassword(req: Request, res: Response): Promise<void> {
+    try {
+      const { email } = req.body || {}
+      await AuthService.forgotPassword(email)
+      res.json({ success: true })
+    } catch (error: any) {
+      res.status(400).json({ error: error.message })
+    }
+  }
+
+  static async resetPassword(req: Request, res: Response): Promise<void> {
+    try {
+      const { token, newPass, confirmPass } = req.body || {}
+      await AuthService.resetPassword(token, newPass, confirmPass)
+      res.json({ success: true })
+    } catch (error: any) {
+      res.status(400).json({ error: error.message })
+    }
   }
 }

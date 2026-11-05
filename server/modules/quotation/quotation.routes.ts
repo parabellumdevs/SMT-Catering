@@ -1,5 +1,5 @@
-import { createRouter } from '../../types/http'
-import { QuotationController } from './quotation.controller'
+import { createRouter } from '../../types/http.ts'
+import { QuotationController } from './quotation.controller.ts'
 
 export const quotationRouter = createRouter()
 

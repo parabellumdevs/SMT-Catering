@@ -24,15 +24,8 @@ interface RowItemProps {
 
 /**
  * Fila individual de la tabla de tarifas (Módulo 3: Tarifas).
- *
- * Funcionalidad:
- * - Permite edición manual del precio por comensal de un ítem, o del monto fijo por evento (Seguro).
- * - Proporciona controles accesibles (Guardar con Enter/botón, Cancelar con Escape/botón).
- * - Cuando existe una vista previa masiva activa (`previewPrice`), muestra el precio actual tachado
- *   y el nuevo precio proyectado, inhabilitando la edición individual temporalmente.
  */
 export function TariffTableRow({ tariff, previewPrice, onUpdate, onUpdateFixed }: RowItemProps) {
-  // El Seguro es un monto fijo por evento; el resto es precio por comensal.
   const isFixed = tariff.category === 'insurance'
   const currentCents = isFixed ? (tariff.fixedCents ?? 0) : tariff.pricePerGuestCents
   const inPreview = previewPrice !== undefined
@@ -71,6 +64,7 @@ export function TariffTableRow({ tariff, previewPrice, onUpdate, onUpdateFixed }
         </div>
       </TD>
       <TD>
+        {/* Usamos 'brand' en lugar de 'primary' para categorías base si querés mantener el color unificado */}
         <Badge variant={tariff.category === 'base' ? 'primary' : 'neutral'}>
           {categoryLabel[tariff.category]}
         </Badge>
@@ -97,10 +91,11 @@ export function TariffTableRow({ tariff, previewPrice, onUpdate, onUpdateFixed }
                 if (e.key === 'Escape') handleCancel()
               }}
             />
+            {/* Botón de confirmación (Check) con color brand corporativo */}
             <button
               type="button"
               onClick={handleSave}
-              className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-white hover:bg-primary-deep"
+              className="flex h-7 w-7 items-center justify-center rounded-md bg-brand text-white hover:bg-brand-dark transition-colors"
               title="Guardar nuevo precio"
               aria-label="Confirmar nuevo precio"
             >
@@ -109,7 +104,7 @@ export function TariffTableRow({ tariff, previewPrice, onUpdate, onUpdateFixed }
             <button
               type="button"
               onClick={handleCancel}
-              className="flex h-7 w-7 items-center justify-center rounded-md border border-hairline text-ink-mute hover:text-ink"
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-hairline text-ink-mute hover:text-ink transition-colors"
               title="Cancelar edición"
               aria-label="Cancelar edición"
             >
@@ -125,7 +120,7 @@ export function TariffTableRow({ tariff, previewPrice, onUpdate, onUpdateFixed }
         )}
       </TD>
       {inPreview ? (
-        <TD className="text-right font-normal text-primary-deep tnum">
+        <TD className="text-right font-normal text-brand tnum">
           {isFixed ? (
             <span className="text-ink-mute">Sin ajuste</span>
           ) : (
@@ -142,7 +137,7 @@ export function TariffTableRow({ tariff, previewPrice, onUpdate, onUpdateFixed }
                 setVal((currentCents / 100).toFixed(0))
                 setEditing(true)
               }}
-              className="h-7 px-2.5 text-xs text-primary hover:bg-primary-subdued/20"
+              className="h-7 px-2.5 text-xs text-brand hover:bg-brand/10"
               aria-label={`Editar tarifa de ${tariff.label}`}
             >
               <Edit2 className="h-3 w-3 mr-1" />
