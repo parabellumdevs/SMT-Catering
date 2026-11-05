@@ -3,15 +3,15 @@
  * Conecta cada módulo vertical aislado bajo su prefijo de ruta /api/*.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { Request, Response, RouteHandler } from './types/http'
-import { authRouter } from './modules/auth/auth.routes'
-import { eventsRouter } from './modules/events/events.routes'
-import { quotationRouter } from './modules/quotation/quotation.routes'
-import { productionRouter } from './modules/production/production.routes'
-import { tariffsRouter } from './modules/tariffs/tariffs.routes'
-import { usersRouter } from './modules/users/users.routes'
-import { profileRouter } from './modules/profile/profile.routes'
-import { getDatabase } from './db/client'
+import type { Request, Response, RouteHandler } from './types/http.ts'
+import { authRouter } from './modules/auth/auth.routes.ts'
+import { eventsRouter } from './modules/events/events.routes.ts'
+import { quotationRouter } from './modules/quotation/quotation.routes.ts'
+import { productionRouter } from './modules/production/production.routes.ts'
+import { tariffsRouter } from './modules/tariffs/tariffs.routes.ts'
+import { usersRouter } from './modules/users/users.routes.ts'
+import { profileRouter } from './modules/profile/profile.routes.ts'
+import { getDatabase } from './db/client.ts'
 
 export const appModules = {
   auth: authRouter,

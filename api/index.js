@@ -372,6 +372,31 @@ var AuthService = class {
   }
 };
 
+// server/middleware/authGuard.ts
+function extractAuthenticatedUser(req) {
+  const token = req.cookies?.["smt_session"] || req.cookies?.["smt_token"] || (typeof req.headers.authorization === "string" ? req.headers.authorization.replace("Bearer ", "").trim() : void 0);
+  if (!token) return null;
+  const payload = verifyJwt(token);
+  if (!payload) return null;
+  return {
+    id: payload.id,
+    role: payload.role,
+    email: payload.email,
+    fullName: payload.fullName,
+    username: payload.email ? payload.email.split("@")[0] : "usuario",
+    isClient: payload.isClient
+  };
+}
+function authGuard(req, res, next) {
+  const user = extractAuthenticatedUser(req);
+  if (!user) {
+    res.status(401).json({ error: "No autenticado. Inicie sesi\xF3n para continuar." });
+    return;
+  }
+  req.user = user;
+  if (next) next();
+}
+
 // server/modules/auth/auth.controller.ts
 var AuthController = class {
   static async login(req, res) {
@@ -412,17 +437,18 @@ var AuthController = class {
     }
   }
   static async me(req, res) {
-    if (!req.user) {
+    const authUser = req.user || extractAuthenticatedUser(req);
+    if (!authUser) {
       res.json({ user: null });
       return;
     }
     res.json({
       user: {
-        id: req.user.id,
-        username: req.user.username,
-        fullName: req.user.fullName,
-        email: req.user.email,
-        role: req.user.role
+        id: authUser.id,
+        username: authUser.username,
+        fullName: authUser.fullName,
+        email: authUser.email,
+        role: authUser.role
       }
     });
   }
@@ -451,35 +477,12 @@ var AuthController = class {
   }
 };
 
-// server/middleware/authGuard.ts
-function authGuard(req, res, next) {
-  const token = req.cookies?.["smt_session"] || req.cookies?.["smt_token"] || (typeof req.headers.authorization === "string" ? req.headers.authorization.replace("Bearer ", "").trim() : void 0);
-  if (!token) {
-    res.status(401).json({ error: "No autenticado. Inicie sesi\xF3n para continuar." });
-    return;
-  }
-  const payload = verifyJwt(token);
-  if (!payload) {
-    res.status(401).json({ error: "Sesi\xF3n inv\xE1lida o expirada. Vuelva a iniciar sesi\xF3n." });
-    return;
-  }
-  req.user = {
-    id: payload.id,
-    role: payload.role,
-    email: payload.email,
-    fullName: payload.fullName,
-    username: payload.email ? payload.email.split("@")[0] : "usuario",
-    isClient: payload.isClient
-  };
-  if (next) next();
-}
-
 // server/modules/auth/auth.routes.ts
 var authRouter = createRouter();
 authRouter.post("/login", AuthController.login);
 authRouter.post("/register", AuthController.register);
 authRouter.post("/logout", AuthController.logout);
-authRouter.get("/me", authGuard, AuthController.me);
+authRouter.get("/me", AuthController.me);
 authRouter.post("/forgot-password", AuthController.forgotPassword);
 authRouter.post("/reset-password", AuthController.resetPassword);
 

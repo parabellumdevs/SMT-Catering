@@ -1,4 +1,4 @@
-import type { UserRole } from '../../shared/types/roles'
+import type { UserRole } from '../../shared/types/roles.ts'
 
 export interface AuthenticatedUser {
   id: number

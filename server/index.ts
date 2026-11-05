@@ -3,8 +3,8 @@
  * Servidor HTTP nativo de Node.js que orquesta los módulos de la aplicación.
  */
 import { createServer } from 'node:http'
-import { app } from './app'
-import { db, getDatabase } from './db/client'
+import { app } from './app.ts'
+import { db, getDatabase } from './db/client.ts'
 
 const PORT = Number(process.env.PORT) || 3001
 

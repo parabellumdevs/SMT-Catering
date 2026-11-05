@@ -1,5 +1,5 @@
-import type { Request, Response } from '../../types/http'
-import { ProductionService } from './production.service'
+import type { Request, Response } from '../../types/http.ts'
+import { ProductionService } from './production.service.ts'
 
 export class ProductionController {
   static async getComanda(req: Request, res: Response): Promise<void> {

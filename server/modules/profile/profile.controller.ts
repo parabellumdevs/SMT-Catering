@@ -1,5 +1,5 @@
-import type { Request, Response } from '../../types/http'
-import { ProfileService } from './profile.service'
+import type { Request, Response } from '../../types/http.ts'
+import { ProfileService } from './profile.service.ts'
 
 export class ProfileController {
   static async getProfile(req: Request, res: Response): Promise<void> {
@@ -53,3 +53,4 @@ export class ProfileController {
     }
   }
 }
+

@@ -1,7 +1,7 @@
-import { getDatabase } from '../../db/client'
-import { hashPassword, verifyPassword } from '../../lib/passwords'
-import { signJwt } from '../../lib/jwt'
-import type { AuthenticatedUser } from '../../types/http'
+import { getDatabase } from '../../db/client.ts'
+import { hashPassword, verifyPassword } from '../../lib/passwords.ts'
+import { signJwt } from '../../lib/jwt.ts'
+import type { AuthenticatedUser } from '../../types/http.ts'
 
 export interface LoginResult {
   user: AuthenticatedUser

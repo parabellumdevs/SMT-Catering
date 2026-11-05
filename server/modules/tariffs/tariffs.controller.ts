@@ -1,5 +1,5 @@
-import type { Request, Response } from '../../types/http'
-import { TariffsService } from './tariffs.service'
+import type { Request, Response } from '../../types/http.ts'
+import { TariffsService } from './tariffs.service.ts'
 
 export class TariffsController {
   static async list(_req: Request, res: Response): Promise<void> {

@@ -1,5 +1,5 @@
-import type { Request, Response, NextFunction } from '../types/http'
-import type { UserRole } from '../../shared/types/roles'
+import type { Request, Response, NextFunction } from '../types/http.ts'
+import type { UserRole } from '../../shared/types/roles.ts'
 
 /**
  * Middleware RBAC para restringir endpoints según roles permitidos.

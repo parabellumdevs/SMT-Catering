@@ -1,5 +1,5 @@
-import { createRouter } from '../../types/http'
-import { EventsController } from './events.controller'
+import { createRouter } from '../../types/http.ts'
+import { EventsController } from './events.controller.ts'
 
 export const eventsRouter = createRouter()
 

@@ -1,5 +1,5 @@
-import type { Request, Response } from '../../types/http'
-import { UsersService } from './users.service'
+import type { Request, Response } from '../../types/http.ts'
+import { UsersService } from './users.service.ts'
 
 export class UsersController {
   static async list(_req: Request, res: Response): Promise<void> {
@@ -78,3 +78,4 @@ export class UsersController {
     }
   }
 }
+

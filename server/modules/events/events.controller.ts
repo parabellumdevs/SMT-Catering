@@ -1,5 +1,5 @@
-import type { Request, Response } from '../../types/http'
-import { EventsService } from './events.service'
+import type { Request, Response } from '../../types/http.ts'
+import { EventsService } from './events.service.ts'
 
 export class EventsController {
   static async list(_req: Request, res: Response): Promise<void> {

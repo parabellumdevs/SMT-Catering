@@ -1,11 +1,7 @@
-import type { Request, Response, NextFunction } from '../types/http'
-import { verifyJwt } from '../lib/jwt'
+import type { Request, Response, NextFunction, AuthenticatedUser } from '../types/http.ts'
+import { verifyJwt } from '../lib/jwt.ts'
 
-/**
- * Middleware de verificación de autenticación.
- * Lee el token JWT firmado desde la cookie HTTP-only smt_session (o header Authorization Bearer).
- */
-export function authGuard(req: Request, res: Response, next?: NextFunction): void {
+export function extractAuthenticatedUser(req: Request): AuthenticatedUser | null {
   const token =
     req.cookies?.['smt_session'] ||
     req.cookies?.['smt_token'] ||
@@ -13,18 +9,12 @@ export function authGuard(req: Request, res: Response, next?: NextFunction): voi
       ? req.headers.authorization.replace('Bearer ', '').trim()
       : undefined)
 
-  if (!token) {
-    res.status(401).json({ error: 'No autenticado. Inicie sesión para continuar.' })
-    return
-  }
+  if (!token) return null
 
   const payload = verifyJwt(token)
-  if (!payload) {
-    res.status(401).json({ error: 'Sesión inválida o expirada. Vuelva a iniciar sesión.' })
-    return
-  }
+  if (!payload) return null
 
-  req.user = {
+  return {
     id: payload.id,
     role: payload.role,
     email: payload.email,
@@ -32,6 +22,20 @@ export function authGuard(req: Request, res: Response, next?: NextFunction): voi
     username: payload.email ? payload.email.split('@')[0] : 'usuario',
     isClient: payload.isClient,
   }
+}
 
+/**
+ * Middleware de verificación de autenticación.
+ * Lee el token JWT firmado desde la cookie HTTP-only smt_session (o header Authorization Bearer).
+ */
+export function authGuard(req: Request, res: Response, next?: NextFunction): void {
+  const user = extractAuthenticatedUser(req)
+
+  if (!user) {
+    res.status(401).json({ error: 'No autenticado. Inicie sesión para continuar.' })
+    return
+  }
+
+  req.user = user
   if (next) next()
 }

@@ -1,7 +1,7 @@
-import { createRouter } from '../../types/http'
-import { UsersController } from './users.controller'
-import { authGuard } from '../../middleware/authGuard'
-import { requireRoles } from '../../middleware/roleGuard'
+import { createRouter } from '../../types/http.ts'
+import { UsersController } from './users.controller.ts'
+import { authGuard } from '../../middleware/authGuard.ts'
+import { requireRoles } from '../../middleware/roleGuard.ts'
 
 export const usersRouter = createRouter()
 
@@ -13,3 +13,4 @@ usersRouter.delete('/staff/:id', authGuard, requireRoles(['superadmin']), UsersC
 
 usersRouter.patch('/clients/:id', authGuard, requireRoles(['admin', 'superadmin']), UsersController.updateClient)
 usersRouter.put('/clients/:id', authGuard, requireRoles(['admin', 'superadmin']), UsersController.updateClient)
+

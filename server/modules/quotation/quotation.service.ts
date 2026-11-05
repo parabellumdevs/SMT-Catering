@@ -1,4 +1,4 @@
-import { getDatabase } from '../../db/client'
+import { getDatabase } from '../../db/client.ts'
 
 export class QuotationService {
   static async checkAvailability(date: string): Promise<{ available: boolean; isConcurrent: boolean }> {

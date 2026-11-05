@@ -1,5 +1,6 @@
-import type { Request, Response } from '../../types/http'
-import { AuthService } from './auth.service'
+import type { Request, Response } from '../../types/http.ts'
+import { AuthService } from './auth.service.ts'
+import { extractAuthenticatedUser } from '../../middleware/authGuard.ts'
 
 export class AuthController {
   static async login(req: Request, res: Response): Promise<void> {
@@ -44,18 +45,19 @@ export class AuthController {
   }
 
   static async me(req: Request, res: Response): Promise<void> {
-    if (!req.user) {
+    const authUser = req.user || extractAuthenticatedUser(req)
+    if (!authUser) {
       res.json({ user: null })
       return
     }
 
     res.json({
       user: {
-        id: req.user.id,
-        username: req.user.username,
-        fullName: req.user.fullName,
-        email: req.user.email,
-        role: req.user.role,
+        id: authUser.id,
+        username: authUser.username,
+        fullName: authUser.fullName,
+        email: authUser.email,
+        role: authUser.role,
       },
     })
   }

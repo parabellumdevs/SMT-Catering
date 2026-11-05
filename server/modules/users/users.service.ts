@@ -1,5 +1,5 @@
-import { getDatabase } from '../../db/client'
-import { hashPassword } from '../../lib/passwords'
+import { getDatabase } from '../../db/client.ts'
+import { hashPassword } from '../../lib/passwords.ts'
 
 export class UsersService {
   static async list() {
@@ -198,3 +198,4 @@ export class UsersService {
     )
   }
 }
+

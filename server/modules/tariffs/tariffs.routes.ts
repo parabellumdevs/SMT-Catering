@@ -1,7 +1,7 @@
-import { createRouter } from '../../types/http'
-import { TariffsController } from './tariffs.controller'
-import { authGuard } from '../../middleware/authGuard'
-import { requireRoles } from '../../middleware/roleGuard'
+import { createRouter } from '../../types/http.ts'
+import { TariffsController } from './tariffs.controller.ts'
+import { authGuard } from '../../middleware/authGuard.ts'
+import { requireRoles } from '../../middleware/roleGuard.ts'
 
 export const tariffsRouter = createRouter()
 

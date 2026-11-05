@@ -1,5 +1,5 @@
-import type { Request, Response } from '../../types/http'
-import { QuotationService } from './quotation.service'
+import type { Request, Response } from '../../types/http.ts'
+import { QuotationService } from './quotation.service.ts'
 
 export class QuotationController {
   static async checkDate(req: Request, res: Response): Promise<void> {

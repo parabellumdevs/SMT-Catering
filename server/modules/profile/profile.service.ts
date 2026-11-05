@@ -1,5 +1,5 @@
-import { getDatabase } from '../../db/client'
-import { hashPassword, verifyPassword } from '../../lib/passwords'
+import { getDatabase } from '../../db/client.ts'
+import { hashPassword, verifyPassword } from '../../lib/passwords.ts'
 
 export class ProfileService {
   static async getProfile(clientId: number) {
@@ -103,3 +103,4 @@ export class ProfileService {
     ])
   }
 }
+
