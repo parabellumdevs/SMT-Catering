@@ -246,20 +246,34 @@ export async function app(req: IncomingMessage, res: ServerResponse): Promise<vo
           // Ejecutar cadena de middlewares y handlers
           try {
             let handlerIdx = 0
-            const next = async (err?: any) => {
-              if (err) {
-                if (!isResponseSent) {
-                  customRes.status(500).json({ error: err.message || 'Error interno del servidor' })
+            // Los middlewares llaman next() sin devolver su promesa: las acumulamos
+            // para esperar a que termine toda la cadena (middlewares + controlador).
+            const pending: Promise<void>[] = []
+            const next = (err?: any): Promise<void> => {
+              const p = (async () => {
+                if (err) {
+                  if (!isResponseSent) {
+                    customRes.status(500).json({ error: err.message || 'Error interno del servidor' })
+                  }
+                  return
                 }
-                return
-              }
-              if (handlerIdx < route.handlers.length && !isResponseSent) {
-                const currentHandler: RouteHandler = route.handlers[handlerIdx++]
-                await currentHandler(customReq, customRes, next)
-              }
+                if (handlerIdx < route.handlers.length && !isResponseSent) {
+                  const currentHandler: RouteHandler = route.handlers[handlerIdx++]
+                  await currentHandler(customReq, customRes, next)
+                }
+              })()
+              pending.push(p)
+              return p
             }
             await next()
-            if (isResponseSent) return
+            while (pending.length > 0) {
+              await Promise.all(pending.splice(0, pending.length))
+            }
+            // Ruta encontrada: la cadena ya respondió (o falló); no seguir buscando.
+            if (!isResponseSent) {
+              customRes.status(500).json({ error: 'La ruta no generó respuesta' })
+            }
+            return
           } catch (handlerErr: any) {
             if (!isResponseSent) {
               customRes.status(500).json({ error: handlerErr.message || 'Error en ejecución de ruta' })
