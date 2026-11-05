@@ -92,7 +92,7 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
 
 - [ ] **Validación de Ubicación**
   - [x] Definir regla de distancia máxima $\le 20\text{ km}$ en esquema Zod (`shared/schemas/quotation.schema.ts`).
-  - [ ] Campo en frontend para ingresar dirección o geolocalización del evento.
+  - [X] Campo en frontend para ingresar dirección o geolocalización del evento.
   - [ ] Validación de distancia contra el punto base establecido.
 - [ ] **Selector de Islas / Estaciones**
   - [ ] Incorporar imágenes ilustrativas de alta calidad para cada una de las estaciones gastronómicas.
@@ -104,8 +104,8 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
   - [ ] Permitir agregar restricciones personalizadas ("Otros") indicando descripción y cantidad exacta de comensales.
 - [ ] **Fecha del Evento, Horarios & Disponibilidad**
   - [x] Definir reglas de validación en esquema Zod y backend (`server/modules/quotation/`).
-  - [ ] Reducir la antelación mínima de reserva a **15 días** (en UI y calendario).
-  - [ ] Restringir la selección de fechas exclusivamente a días **viernes, sábados y domingos**.
+  - [X] Reducir la antelación mínima de reserva a **15 días** (en UI y calendario).
+  - [X] Restringir la selección de fechas exclusivamente a días **viernes, sábados y domingos**.
   - [ ] Franja horaria y duración del servicio:
     - [ ] Duración máxima del evento: **hasta 3 horas**.
     - [ ] El cliente debe seleccionar su horario dentro de la ventana operativa de **19:00 a 00:00 hs** (horario límite de finalización: 00:00 hs).
