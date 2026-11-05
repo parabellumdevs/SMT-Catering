@@ -13,9 +13,9 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary: 'bg-primary text-white hover:bg-primary-deep active:bg-primary-press',
-        secondary: 'border border-primary bg-canvas text-primary hover:bg-primary-subdued/30',
+        secondary: 'border border-brand text-brand bg-canvas hover:bg-brand hover:text-white hover:border-brand',
         onDark: 'bg-brand-dark text-white hover:bg-primary-press',
-        ghost: 'text-ink-secondary hover:bg-canvas-soft',
+        ghost: 'text-ink-secondary hover:bg-brand/10 hover:text-brand',
         danger: 'bg-state-danger text-white hover:opacity-90',
         brand: 'bg-brand text-white hover:bg-brand-dark active:opacity-90', // 👈 Nueva variante corporativa
       },

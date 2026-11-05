@@ -8,10 +8,10 @@ import { useAuthStore } from '@/stores/authStore'
 import { cn } from '@/lib/utils'
 
 /**
- * Shell responsive (AGENTS.md §Responsividad):
- * - >1024px: sidebar fija con íconos+labels (desktop admin)
- * - 768-1024px: sidebar colapsada a solo íconos (tablet cocina)
- * - <768px: bottom navigation bar persistente
+ * Shell responsive:
+ * >1024px: sidebar fija borravina con íconos + labels (desktop)
+ * 768-1024px: sidebar colapsada a solo íconos (tablet)
+ * <768px: bottom navigation bar persistente (móvil)
  */
 export function AppShell() {
   const linkClass = useNavLinkClass()
@@ -34,18 +34,21 @@ export function AppShell() {
 
   return (
     <div className="relative min-h-dvh bg-canvas-soft">
-      {/* Gradient Mesh atmosférico en el tercio superior (DESIGN.md) */}
+      {/* Gradient Mesh atmosférico en el tercio superior */}
       <GradientMesh />
 
-      {/* Sidebar desktop/tablet — oculta en móvil */}
-      <aside className="no-print fixed inset-y-0 left-0 z-20 hidden w-16 flex-col border-r border-hairline bg-canvas py-4 md:flex md:w-16 lg:w-56">
+      {/* Sidebar desktop/tablet — Borravino corporativo */}
+      <aside className="no-print fixed inset-y-0 left-0 z-20 hidden w-16 flex-col border-r border-brand-dark/20 bg-brand py-4 text-white md:flex md:w-16 lg:w-56 shadow-md">
+        {/* Branding superior */}
         <div className="mb-6 flex h-10 items-center justify-center lg:justify-start lg:px-4">
-          <span className="text-lg font-normal tracking-tight text-ink">
+          <span className="text-lg font-medium tracking-tight text-white">
             <span className="hidden lg:inline">SMT Catering</span>
             <span className="lg:hidden">SMT</span>
           </span>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 px-2" aria-label="Navegación principal">
+
+        {/* Links de navegación */}
+        <nav className="flex flex-1 flex-col gap-1.5 px-2" aria-label="Navegación principal">
           {visibleNavItems.map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end} className={linkClass} title={label}>
               <Icon className="h-5 w-5 shrink-0" />
@@ -55,9 +58,9 @@ export function AppShell() {
         </nav>
 
         {/* Zona de usuario — pie de la sidebar */}
-        <div className="mt-auto border-t border-hairline px-2 pt-3">
+        <div className="mt-auto border-t border-white/15 px-2 pt-3">
           {username ? (
-            <p className="mb-2 hidden truncate px-2 text-[11px] text-ink-mute lg:block">
+            <p className="mb-2 hidden truncate px-2 text-[11px] text-white/60 lg:block">
               {username}
             </p>
           ) : null}
@@ -68,10 +71,10 @@ export function AppShell() {
               to="/perfil"
               className={({ isActive }) =>
                 cn(
-                  'mb-1 flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors',
+                  'mb-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
                   isActive
-                    ? 'bg-primary text-white'
-                    : 'text-ink-mute hover:bg-canvas-soft hover:text-ink-secondary',
+                    ? 'bg-canvas-cream text-brand font-medium'
+                    : 'text-white/80 hover:bg-white/10 hover:text-white',
                 )
               }
               title="Mi perfil"
@@ -84,7 +87,7 @@ export function AppShell() {
           <button
             type="button"
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm text-ink-mute transition-colors hover:bg-canvas-soft hover:text-state-danger"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-red-300"
             title="Cerrar sesión"
           >
             <LogOut className="h-5 w-5 shrink-0" />
@@ -95,7 +98,7 @@ export function AppShell() {
 
       {/* Contenido principal con barra de navegación superior */}
       <div className="pb-20 md:pb-0 md:pl-16 lg:pl-56">
-        {/* Barra de navegación superior — incorpora ícono de engranaje para cliente (Punto 4 ISSUES.md) */}
+        {/* Barra superior (header) */}
         <header className="no-print sticky top-0 z-10 flex h-14 items-center justify-between border-b border-hairline/60 bg-canvas/80 px-4 backdrop-blur-md md:px-8">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold tracking-tight text-ink md:hidden">SMT Catering</span>
@@ -114,8 +117,8 @@ export function AppShell() {
                   cn(
                     'flex h-9 w-9 items-center justify-center rounded-full border transition-colors',
                     isActive
-                      ? 'border-primary bg-primary text-white shadow-sm'
-                      : 'border-hairline bg-canvas text-ink-secondary hover:border-primary/40 hover:text-primary',
+                      ? 'border-brand bg-brand text-white shadow-sm'
+                      : 'border-hairline bg-canvas text-ink-secondary hover:border-brand/40 hover:text-brand',
                   )
                 }
                 title="Configuración de perfil"
@@ -131,7 +134,7 @@ export function AppShell() {
         </main>
       </div>
 
-      {/* Bottom nav — solo móvil */}
+      {/* Bottom nav — versión móvil */}
       <nav
         className="no-print fixed inset-x-0 bottom-0 z-20 flex border-t border-hairline bg-canvas md:hidden"
         aria-label="Navegación inferior"
@@ -143,8 +146,8 @@ export function AppShell() {
             end={end}
             className={({ isActive }) =>
               cn(
-                'flex min-h-16 flex-1 flex-col items-center justify-center gap-0.5 text-[11px]',
-                isActive ? 'text-primary' : 'text-ink-mute',
+                'flex min-h-16 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] transition-colors',
+                isActive ? 'font-semibold text-brand' : 'text-ink-mute hover:text-ink',
               )
             }
           >
@@ -153,14 +156,13 @@ export function AppShell() {
           </NavLink>
         ))}
 
-        {/* Engranaje en bottom nav — solo clientes */}
         {userRole === 'cliente' && (
           <NavLink
             to="/perfil"
             className={({ isActive }) =>
               cn(
-                'flex min-h-16 flex-1 flex-col items-center justify-center gap-0.5 text-[11px]',
-                isActive ? 'text-primary' : 'text-ink-mute',
+                'flex min-h-16 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] transition-colors',
+                isActive ? 'font-semibold text-brand' : 'text-ink-mute hover:text-ink',
               )
             }
           >

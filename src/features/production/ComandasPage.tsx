@@ -1,120 +1,81 @@
-import { Printer } from 'lucide-react'
+/**
+ * ComandaListPage — Módulo de comandas técnicas de cocina.
+ */
+import { Printer, Calendar } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
 import { PageHeader } from '@/components/layout/AppShell'
 import { Button } from '@/components/ui/button'
-import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table'
 import { ComandaTicket } from '@/features/production/components/ComandaTicket'
-import { DownloadButton } from '@/features/production/components/DownloadButton'
 import { useEvents } from '@/features/dashboard/hooks/useEventsSummary'
-import {
-  collectDietaryAlerts,
-  consolidateByStation,
-  generateKitchenExport,
-} from '@/features/production/utils/generateKitchenExport'
-import { daysUntil, isWithinProductionWindow } from '@/lib/utils'
+import { isWithinProductionWindow } from '@/lib/utils'
 
-/**
- * Módulo 2 — Comandas Técnicas de Producción para Cocina y Planta Centralizada.
- *
- * Invariantes Críticas de Negocio (AGENTS.md):
- * 1. Ventana de producción: los eventos se planifican con 30 días de anticipación (`isWithinProductionWindow`).
- * 2. Cero datos financieros: JAMÁS mostrar precios, márgenes de ganancia ni estados de cobro.
- *    La cocina solo debe visualizar volúmenes netos, raciones por estación, alérgenos y notas de salud.
- * 3. Preparado para impresión física (`@media print` con `.no-print`) para despacho en planta.
- */
 export function ComandaListPage() {
   const { data: events = [] } = useEvents()
+  
   const windowed = events.filter(
     (e) => e.status !== 'Cancelado' && isWithinProductionWindow(e.eventDate),
   )
-  const byStation = consolidateByStation(events)
-  const alerts = collectDietaryAlerts(events)
+
+  const eventsByDate = windowed.reduce((acc, event) => {
+    const dateKey = event.eventDate
+    if (!acc[dateKey]) acc[dateKey] = []
+    acc[dateKey].push(event)
+    return acc
+  }, {} as Record<string, typeof windowed>)
 
   return (
     <>
       <div className="no-print">
         <PageHeader
-          title="Comanda técnica de producción"
-          description="Eventos con 30 días de anticipación — consolidado por estación para planta centralizada."
-          actions={
-            <>
-              <DownloadButton text={generateKitchenExport(events)} />
-              <Button onClick={() => window.print()}>
-                <Printer className="h-4 w-4" />
-                Imprimir
-              </Button>
-            </>
-          }
+          title="Comandas de cocina"
+          description="Preparaciones, cantidades y restricciones de los próximos servicios."
         />
       </div>
 
-      <section className="mb-8 rounded-lg border border-hairline bg-canvas p-6 shadow-1">
-        <h2 className="mb-4 text-heading-lg font-light text-ink">Raciones por estación</h2>
-        {byStation.length === 0 ? (
-          <p className="text-sm text-ink-mute">No hay eventos dentro de la ventana de 30 días.</p>
-        ) : (
-          <Table>
-            <THead>
-              <TR>
-                <TH>Estación</TH>
-                <TH className="text-right">Raciones netas</TH>
-                <TH>Eventos</TH>
-              </TR>
-            </THead>
-            <TBody>
-              {byStation.map((c) => (
-                <TR key={c.stationId}>
-                  <TD className="font-normal">{c.stationName}</TD>
-                  <TD className="text-right tnum">{c.totalRations}</TD>
-                  <TD className="text-ink-mute tnum">
-                    {c.events.map((e) => `${e.id} (${daysUntil(e.eventDate)}d)`).join(', ')}
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        )}
-      </section>
+      <div className="space-y-8">
+        {Object.entries(eventsByDate).map(([date, dateEvents]) => {
+          const formattedDate = new Date(date).toLocaleDateString('es-AR', {
+            weekday: 'long',
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          }).toUpperCase()
 
-      <section className="mb-8 rounded-lg border border-state-danger/30 bg-state-danger-bg p-6">
-        <h2 className="mb-3 text-heading-lg font-light text-state-danger">
-          Alertas de alérgenos y dietas
-        </h2>
-        {alerts.length === 0 ? (
-          <p className="text-sm text-ink-secondary">Sin restricciones en la ventana.</p>
-        ) : (
-          <ul className="space-y-2 text-sm text-ink">
-            {alerts.map((a) => (
-              <li key={a.eventId} className="tnum">
-                <span className="font-normal">{a.eventId}</span> {a.clientName} —{' '}
-                {[
-                  a.celiacos > 0 ? `celíacos x${a.celiacos}` : '',
-                  a.vegetarianos > 0 ? `vegetarianos x${a.vegetarianos}` : '',
-                  a.veganos > 0 ? `veganos x${a.veganos}` : '',
-                  a.alergias ? `alergias: ${a.alergias}` : '',
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+          const isSingleEvent = dateEvents.length === 1
 
-      <div className="space-y-6">
-        {windowed.map((e) => (
-          <ComandaTicket key={e.id} event={e} />
-        ))}
+          return (
+            <div key={date} className="rounded-2xl border border-gray-200/80 bg-gray-50/50 overflow-hidden shadow-sm">
+              <div className="bg-brand px-6 py-3.5 text-white flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 rounded-md bg-white/10">
+                    <Calendar className="h-4 w-4 text-white" />
+                  </div>
+                  <h3 className="text-sm font-semibold tracking-wide uppercase">{formattedDate}</h3>
+                </div>
+                <span className="text-xs bg-white/10 text-white/90 px-3 py-1 rounded-full font-medium backdrop-blur-sm border border-white/10">
+                  {dateEvents.length} {dateEvents.length === 1 ? 'servicio' : 'servicios'}
+                </span>
+              </div>
+
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                {dateEvents.map((e) => (
+                  <div 
+                    key={e.id}
+                    className={isSingleEvent ? 'md:col-span-2' : 'md:col-span-1'}
+                  >
+                    <ComandaTicket event={e} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </>
   )
 }
 
-/**
- * Vista de Comanda Técnica Individual para un evento específico (`/comandas/:eventId`).
- * Permite imprimir la hoja de producción individual para la partida de cocina asignada.
- */
 export function ComandaDetailPage() {
   const { eventId } = useParams<{ eventId: string }>()
   const { data: events = [] } = useEvents()

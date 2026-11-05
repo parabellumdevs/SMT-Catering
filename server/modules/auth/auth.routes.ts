@@ -1,10 +1,11 @@
-import { createRouter } from '../../types/http'
-import { AuthController } from './auth.controller'
-import { authGuard } from '../../middleware/authGuard'
+import { createRouter } from '../../types/http.ts'
+import { AuthController } from './auth.controller.ts'
 
 export const authRouter = createRouter()
 
 authRouter.post('/login', AuthController.login)
 authRouter.post('/register', AuthController.register)
 authRouter.post('/logout', AuthController.logout)
-authRouter.get('/me', authGuard, AuthController.me)
+authRouter.get('/me', AuthController.me)
+authRouter.post('/forgot-password', AuthController.forgotPassword)
+authRouter.post('/reset-password', AuthController.resetPassword)
