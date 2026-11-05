@@ -7,7 +7,7 @@ import type { UserRole } from '../../shared/types/roles'
 export function requireRoles(allowedRoles: UserRole[]) {
   return (req: Request, res: Response, next?: NextFunction): void => {
     if (!req.user) {
-      res.status(401).json({ error: 'No autenticado' })
+      res.status(401).json({ error: 'No autenticado. Inicie sesión para continuar.' })
       return
     }
 

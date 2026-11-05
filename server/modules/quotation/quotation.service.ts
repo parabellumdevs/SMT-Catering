@@ -1,22 +1,21 @@
 import { getDatabase } from '../../db/client'
-import type { QuotationFormInput } from '../../../shared/schemas/quotation.schema'
 
 export class QuotationService {
   static async checkAvailability(date: string): Promise<{ available: boolean; isConcurrent: boolean }> {
-    const db = getDatabase()
-    const stmt = db.prepare(
-      "SELECT count(*) as count, sum(guests) as total_guests FROM events WHERE event_date = ? AND status != 'Cancelado'",
+    const dbClient = getDatabase()
+    const result = await dbClient.queryOne(
+      "SELECT count(*) as count, sum(cantidad_invitados) as total_guests FROM reserva WHERE fecha_evento = ? AND evento_cancelado = 0",
+      [date],
     )
-    const result = stmt.get(date) as any
 
-    const count = result?.count || 0
-    const totalGuests = result?.total_guests || 0
+    const count = Number(result?.count || 0)
+    const totalGuests = Number(result?.total_guests || 0)
 
     if (count === 0) {
       return { available: true, isConcurrent: false }
     }
 
-    // Regla de concurrencia: si hay 1 evento con <= 60 comensales, se permite otro de max 60
+    // Regla de concurrencia cliente: si hay 1 evento con <= 60 comensales, se permite otro de max 60
     if (count === 1 && totalGuests <= 60) {
       return { available: true, isConcurrent: true }
     }
@@ -24,26 +23,26 @@ export class QuotationService {
     return { available: false, isConcurrent: false }
   }
 
-  static async calculateQuotation(input: QuotationFormInput) {
-    const db = getDatabase()
-    const tariffs = db.prepare('SELECT * FROM tariffs WHERE is_active = 1').all() as any[]
-    const stations = db.prepare('SELECT * FROM stations').all() as any[]
+  static async calculateQuotation(input: { guests: number; stationIds: string[]; distanceKm?: number }) {
+    const dbClient = getDatabase()
+    const tariffs = await dbClient.query('SELECT * FROM tarifas WHERE is_active = 1')
+    const stations = await dbClient.query('SELECT * FROM estacion')
 
-    const baseTariff = tariffs.find((t) => t.category === 'base')?.price_per_guest_cents || 0
-    const insuranceCents = tariffs.find((t) => t.category === 'insurance')?.fixed_cents || 0
+    const baseTariff = tariffs.find((t: any) => t.category === 'base')?.price_per_guest_cents || 0
+    const insuranceCents = tariffs.find((t: any) => t.category === 'insurance')?.fixed_cents || 0
 
     let stationsCentsPerGuest = 0
     for (const stationId of input.stationIds) {
-      const station = stations.find((s) => s.id === stationId)
+      const station = stations.find((s: any) => s.codigo === stationId)
       if (station) {
-        stationsCentsPerGuest += station.price_per_guest_cents
+        stationsCentsPerGuest += Math.round(Number(station.precio_por_persona) * 100)
       }
     }
 
     const perGuestCents = baseTariff + stationsCentsPerGuest
     const subtotalCents = perGuestCents * input.guests
     const totalCents = subtotalCents + insuranceCents
-    const depositCents = Math.round((totalCents * 50) / 100) // Seña 50%
+    const depositCents = Math.round((totalCents * 30) / 100) // Seña 30% según política Meet 2/3
     const balanceCents = totalCents - depositCents
 
     return {
@@ -56,4 +55,3 @@ export class QuotationService {
     }
   }
 }
-

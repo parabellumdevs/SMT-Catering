@@ -1,60 +1,225 @@
 import { getDatabase } from '../../db/client'
-import type { EventRecord } from '../../../shared/types/events'
 
 export class EventsService {
-  static async listEvents(): Promise<EventRecord[]> {
-    const db = getDatabase()
-    const stmt = db.prepare('SELECT * FROM events ORDER BY event_date ASC')
-    const rows = stmt.all() as any[]
+  static async fetchAllEvents() {
+    const dbClient = getDatabase()
+    const rows = await dbClient.query(
+      `SELECT
+        r.*,
+        c.razon_social as cliente_empresa,
+        c.nombre_completo as contacto
+      FROM reserva r
+      JOIN cliente c ON c.id_cliente = r.id_cliente
+      ORDER BY r.fecha_evento ASC`,
+    )
 
-    return rows.map((r) => ({
-      id: r.id,
-      userId: r.user_id,
-      clientName: r.client_name,
-      clientEmail: r.client_email,
-      clientPhone: r.client_phone,
-      eventDate: r.event_date,
-      startTime: r.start_time,
-      endTime: r.end_time,
-      durationHours: r.duration_hours,
-      locationAddress: r.location_address,
-      distanceKm: r.distance_km,
-      guests: r.guests,
-      stationIds: [], // Cargar desde event_stations
-      status: r.status,
-      paymentStatus: r.payment_status,
-      totalCents: r.total_cents,
-      depositCents: r.deposit_cents,
-      balanceCents: r.balance_cents,
-      insuranceCents: r.insurance_cents,
-      dietary: { celiacos: 0, vegetarianos: 0, veganos: 0, alergias: '' },
-      kitchenNotes: r.kitchen_notes,
-    }))
+    const events = await Promise.all(
+      rows.map(async (r: any) => {
+        const [stationRows, dietaryRows, pagos] = await Promise.all([
+          dbClient.query(
+            `SELECT e.codigo
+             FROM detalle_reserva_estacion dre
+             JOIN estacion e ON e.id_estacion = dre.id_estacion
+             WHERE dre.id_reserva = ?`,
+            [r.id_reserva],
+          ),
+          dbClient.query(
+            `SELECT tipo_restriccion, cantidad_personas, observaciones
+             FROM restriccion_alimentaria
+             WHERE id_reserva = ?`,
+            [r.id_reserva],
+          ),
+          dbClient.query(
+            `SELECT tipo_pago, monto, estado
+             FROM pago
+             WHERE id_reserva = ? AND estado = 'confirmado'`,
+            [r.id_reserva],
+          ),
+        ])
+
+        const stations = stationRows.map((s: any) => s.codigo)
+
+        let celiacos = 0
+        let vegetarianos = 0
+        let veganos = 0
+        const alergias: string[] = []
+
+        for (const d of dietaryRows) {
+          const tipo = (d.tipo_restriccion || '').toLowerCase()
+          if (tipo.includes('celia')) celiacos += d.cantidad_personas
+          else if (tipo.includes('vege')) vegetarianos += d.cantidad_personas
+          else if (tipo.includes('vega')) veganos += d.cantidad_personas
+          else if (tipo.includes('alerg')) {
+            if (d.observaciones) alergias.push(d.observaciones)
+          }
+        }
+
+        let depositPesos = 0
+        for (const p of pagos) {
+          if (p.tipo_pago === 'SEÑA' || p.tipo_pago === 'TOTAL') {
+            depositPesos += Number(p.monto) || 0
+          }
+        }
+
+        return {
+          id: `EV-${r.id_reserva}`,
+          clientName: r.cliente_empresa || r.contacto,
+          eventDate: r.fecha_evento,
+          guests: r.cantidad_invitados,
+          stationIds: stations,
+          status: r.estado_evento || 'Presupuestado',
+          paymentStatus: r.estado_pago || 'SEÑA_PENDIENTE',
+          totalCents: Math.round((Number(r.monto_total) || 0) * 100),
+          depositCents: Math.round(depositPesos * 100),
+          dietary: {
+            celiacos,
+            vegetarianos,
+            veganos,
+            alergias: alergias.join(', '),
+          },
+          kitchenNotes: r.notas_cocina || '',
+          startTime: r.hora_inicio,
+          endTime: r.hora_fin,
+          durationHours: Number(r.duracion_horas) || 3.0,
+          locationAddress: r.direccion_evento,
+          distanceKm: Number(r.distancia_km) || 10.0,
+          insuranceCents: Math.round((Number(r.monto_seguro) || 0) * 100),
+        }
+      }),
+    )
+
+    return events
   }
 
-  static async getMyEvents(userId: string): Promise<EventRecord[]> {
-    const db = getDatabase()
-    const stmt = db.prepare('SELECT * FROM events WHERE user_id = ? ORDER BY event_date ASC')
-    const rows = stmt.all(userId) as any[]
-    return rows.map((r) => ({
-      id: r.id,
-      userId: r.user_id,
-      clientName: r.client_name,
-      eventDate: r.event_date,
-      startTime: r.start_time,
-      endTime: r.end_time,
-      durationHours: r.duration_hours,
-      locationAddress: r.location_address,
-      guests: r.guests,
-      stationIds: [],
-      status: r.status,
-      paymentStatus: r.payment_status,
-      totalCents: r.total_cents,
-      depositCents: r.deposit_cents,
-      balanceCents: r.balance_cents,
-      insuranceCents: r.insurance_cents,
-      dietary: { celiacos: 0, vegetarianos: 0, veganos: 0, alergias: '' },
-    }))
+  static async createEvent(body: any) {
+    const dbClient = getDatabase()
+
+    // 1. Cliente B2B (obtener o crear)
+    let cliente = await dbClient.queryOne('SELECT id_cliente FROM cliente WHERE razon_social = ?', [
+      body.clientName,
+    ])
+    let idCliente = cliente?.id_cliente
+    if (!idCliente) {
+      const insertResult = await dbClient.execute(
+        `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          body.clientName,
+          `30-${Date.now().toString().slice(-8)}-1`,
+          body.clientName,
+          `eventos@${body.clientName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'cliente'}.com`,
+          'temp_hash',
+        ],
+      )
+      idCliente = Number(insertResult.lastInsertId)
+    }
+
+    // 2. Reserva
+    const totalPesos = (body.totalCents || 0) / 100
+    const seguroPesos = (body.insuranceCents || 0) / 100
+
+    const reservaResult = await dbClient.execute(
+      `INSERT INTO reserva (
+        id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
+        cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
+        estado_evento, estado_pago, notas_cocina, monto_total, monto_seguro
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        idCliente,
+        body.eventDate,
+        body.startTime || '19:30',
+        body.endTime || '22:30',
+        body.durationHours || 3.0,
+        body.guests || 50,
+        body.locationAddress || 'CABA',
+        body.distanceKm || 10.0,
+        0,
+        body.status || 'Señado / Confirmado',
+        body.paymentStatus || 'SEÑA_ABONADA',
+        body.kitchenNotes || '',
+        totalPesos,
+        seguroPesos,
+      ],
+    )
+
+    const idReserva = Number(reservaResult.lastInsertId)
+
+    // 3. Detalle de Estaciones
+    if (Array.isArray(body.stationIds)) {
+      for (const stationSlug of body.stationIds) {
+        const s = await dbClient.queryOne(
+          'SELECT id_estacion, precio_por_persona FROM estacion WHERE codigo = ?',
+          [stationSlug],
+        )
+        if (s) {
+          const subtotal = Number(s.precio_por_persona) * (body.guests || 50)
+          await dbClient.execute(
+            `INSERT INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado)
+             VALUES (?, ?, ?)`,
+            [idReserva, s.id_estacion, subtotal],
+          )
+        }
+      }
+    }
+
+    // 4. Restricciones Alimentarias
+    if (body.dietary) {
+      if (body.dietary.celiacos > 0) {
+        await dbClient.execute(
+          `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
+           VALUES (?, ?, ?, ?)`,
+          [idReserva, 'Celiaquía', body.dietary.celiacos, 'Menú celíaco'],
+        )
+      }
+      if (body.dietary.vegetarianos > 0) {
+        await dbClient.execute(
+          `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
+           VALUES (?, ?, ?, ?)`,
+          [idReserva, 'Vegetarianos', body.dietary.vegetarianos, 'Menú vegetariano'],
+        )
+      }
+      if (body.dietary.veganos > 0) {
+        await dbClient.execute(
+          `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
+           VALUES (?, ?, ?, ?)`,
+          [idReserva, 'Veganos', body.dietary.veganos, 'Menú vegano'],
+        )
+      }
+      if (body.dietary.alergias) {
+        await dbClient.execute(
+          `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
+           VALUES (?, ?, ?, ?)`,
+          [idReserva, 'Alergias', 1, body.dietary.alergias],
+        )
+      }
+    }
+
+    // 5. Pago inicial (seña)
+    if (body.depositCents > 0) {
+      await dbClient.execute(
+        `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [idReserva, 'SEÑA', body.depositCents / 100, 1, 0, 'confirmado'],
+      )
+    }
+
+    const all = await this.fetchAllEvents()
+    return all.find((e: any) => e.id === `EV-${idReserva}`)
+  }
+
+  static async updateEvent(rawId: string, updates: { status?: string; paymentStatus?: string; kitchenNotes?: string }) {
+    const dbClient = getDatabase()
+    const idReserva = Number(rawId.replace('EV-', ''))
+
+    await dbClient.execute(
+      `UPDATE reserva
+       SET
+         estado_evento = COALESCE(?, estado_evento),
+         estado_pago = COALESCE(?, estado_pago),
+         notas_cocina = COALESCE(?, notas_cocina),
+         fecha_actualizacion = CURRENT_TIMESTAMP
+       WHERE id_reserva = ?`,
+      [updates.status ?? null, updates.paymentStatus ?? null, updates.kitchenNotes ?? null, idReserva],
+    )
   }
 }
-
