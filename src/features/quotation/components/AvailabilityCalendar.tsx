@@ -29,10 +29,6 @@ const WEEKDAYS = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'] as const
 /** Días de la semana en que se reserva (según date-fns getDay): viernes, sábado y domingo. */
 const BOOKABLE_WEEKDAYS = [5, 6, 0]
 
-/**
- * Calendario de disponibilidad: antelación mínima obligatoria, solo viernes, sábados y domingos,
- * y bloqueo de fechas reservadas.
- */
 export function AvailabilityCalendar() {
   const eventDate = useQuotationStore((s) => s.eventDate)
   const setEventDate = useQuotationStore((s) => s.setEventDate)
@@ -64,7 +60,7 @@ export function AvailabilityCalendar() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-primary" />
+            <Calendar className="h-5 w-5 text-[#581c25]" /> 
             <h2 id="calendar-heading" className="text-heading-lg font-light text-ink">Fecha del evento</h2>
           </div>
           <p className="mt-0.5 text-xs text-ink-mute">
@@ -116,7 +112,7 @@ export function AvailabilityCalendar() {
               className={cn(
                 'relative flex h-10 w-full flex-col items-center justify-center rounded-md text-sm transition-colors',
                 !inMonth && 'opacity-25',
-                isSelected && 'bg-primary text-white font-medium shadow-1',
+                isSelected && 'bg-[#581c25] text-white font-medium shadow-1', // 👈 Día seleccionado en borravino
                 !isSelected && isBlocked && 'bg-state-danger-bg text-state-danger cursor-not-allowed',
                 !isSelected && !isBlocked && isTooSoon && 'text-ink-mute/40 cursor-not-allowed line-through decoration-hairline',
                 !isSelected && !isBlocked && !isTooSoon && isWrongWeekday && 'text-ink-mute/40 cursor-not-allowed',
@@ -132,13 +128,13 @@ export function AvailabilityCalendar() {
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-3 text-xs text-ink-mute">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-primary" /> Seleccionada</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#581c25]" /> Seleccionada</span> {/* 👈 Puntito de leyenda en borravino */}
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-state-danger" /> Ocupada</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-hairline" /> &lt;{MIN_BOOKING_DAYS_ADVANCE} días</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full border border-hairline" /> Disponible</span>
         </div>
         {selectedDateObj && (
-          <span className="font-medium text-primary-deep">{format(selectedDateObj, "EEEE d 'de' MMMM, yyyy", { locale: es })}</span>
+          <span className="font-medium text-[#581c25]">{format(selectedDateObj, "EEEE d 'de' MMMM, yyyy", { locale: es })}</span> /* 👈 Texto de fecha seleccionada en borravino */
         )}
       </div>
     </section>
