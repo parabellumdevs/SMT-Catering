@@ -19,8 +19,9 @@ import type { EventRecord } from '@/types/domain'
 
 interface EventTableProps {
   readonly events: EventRecord[]
-  readonly isPast?: boolean
+  readonly isNext?: boolean
   readonly onReschedule?: (eventId: string, newDate: string, newTime: string) => void
+  readonly onCancel: (eventId: string) => void
 }
 
 function formatEventDate(isoDate: string): string {
@@ -45,11 +46,11 @@ function getContactName(event: EventRecord): string {
     : 'Mariana Vidal'
 }
 
-function sortEvents(events: EventRecord[], isPast: boolean): EventRecord[] {
+function sortEvents(events: EventRecord[], isNext: boolean): EventRecord[] {
   return [...events].sort((a, b) => (
-    isPast
-      ? b.eventDate.localeCompare(a.eventDate)
-      : a.eventDate.localeCompare(b.eventDate)
+    isNext
+    ? a.eventDate.localeCompare(b.eventDate)
+    : b.eventDate.localeCompare(a.eventDate)
   ))
 }
 
@@ -59,6 +60,7 @@ interface EventActionsProps {
   readonly menuPosition: 'below' | 'above'
   readonly onToggle: () => void
   readonly onReschedule: (event: EventRecord) => void
+  readonly onCancel: (eventId: string) => void
   readonly onClose: () => void
 }
 
@@ -68,6 +70,7 @@ function EventActions({
   menuPosition,
   onToggle,
   onReschedule,
+  onCancel,
   onClose,
 }: EventActionsProps) {
   const positionClass = menuPosition === 'above'
@@ -106,7 +109,7 @@ function EventActions({
           <button
             type="button"
             className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors font-medium text-left border-t border-gray-100 mt-1 pt-2"
-            onClick={onClose}
+            onClick={() => onCancel(event.id)}
           >
             <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />{' '}
             Cancelar Evento
@@ -135,8 +138,8 @@ function StationBadges({ event }: { readonly event: EventRecord }) {
   )
 }
 
-export function EventTable({ events, isPast = false, onReschedule }: EventTableProps) {
-  const sortedEvents = useMemo(() => sortEvents(events, isPast), [events, isPast])
+export function EventTable({ events, isNext = false, onReschedule, onCancel }: EventTableProps) {
+  const sortedEvents = useMemo(() => sortEvents(events, isNext), [events, isNext])
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [rescheduleEvent, setRescheduleEvent] = useState<EventRecord | null>(null)
 
@@ -156,7 +159,7 @@ export function EventTable({ events, isPast = false, onReschedule }: EventTableP
               <TableHeaderCell className="text-[11px] font-bold uppercase tracking-wider text-gray-400 py-4">Invitados</TableHeaderCell>
               <TableHeaderCell className="text-[11px] font-bold uppercase tracking-wider text-gray-400 py-4">Islas Seleccionadas</TableHeaderCell>
               <TableHeaderCell className="text-[11px] font-bold uppercase tracking-wider text-gray-400 py-4">Monto &amp; Estado</TableHeaderCell>
-              {!isPast && (
+              {isNext && (
                 <TableHeaderCell className="text-[11px] font-bold uppercase tracking-wider text-gray-400 py-4 text-right">
                   Acciones
                 </TableHeaderCell>
@@ -217,7 +220,7 @@ export function EventTable({ events, isPast = false, onReschedule }: EventTableP
                   </div>
                 </TableCell>
 
-                {!isPast && (
+                {isNext && (
                   <TableCell className="text-right py-4 align-middle relative">
                     <EventActions
                       event={event}
@@ -226,6 +229,7 @@ export function EventTable({ events, isPast = false, onReschedule }: EventTableP
                       onToggle={() => setOpenMenuId(openMenuId === event.id ? null : event.id)}
                       onReschedule={handleOpenReschedule}
                       onClose={() => setOpenMenuId(null)}
+                      onCancel={() => onCancel(event.id)}
                     />
                   </TableCell>
                 )}
@@ -249,8 +253,8 @@ export function EventTable({ events, isPast = false, onReschedule }: EventTableP
 }
 
 /** Tarjetas para móvil (<768px). */
-export function EventCards({ events, isPast = false, onReschedule }: EventTableProps) {
-  const sortedEvents = useMemo(() => sortEvents(events, isPast), [events, isPast])
+export function EventCards({ events, isNext = false, onReschedule, onCancel }: EventTableProps) {
+  const sortedEvents = useMemo(() => sortEvents(events, isNext), [events, isNext])
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [rescheduleEvent, setRescheduleEvent] = useState<EventRecord | null>(null)
 
@@ -299,7 +303,7 @@ export function EventCards({ events, isPast = false, onReschedule }: EventTableP
 
             <div className="flex items-center justify-between pt-3 border-t border-gray-100">
               <PaymentStatusBadge status={event.paymentStatus} />
-              {!isPast && (
+              {isNext && (
                 <EventActions
                   event={event}
                   isOpen={openMenuId === event.id}
@@ -307,6 +311,7 @@ export function EventCards({ events, isPast = false, onReschedule }: EventTableP
                   onToggle={() => setOpenMenuId(openMenuId === event.id ? null : event.id)}
                   onReschedule={handleOpenReschedule}
                   onClose={() => setOpenMenuId(null)}
+                  onCancel={() => onCancel}
                 />
               )}
             </div>

@@ -10,7 +10,7 @@ import {
 } from '@/features/dashboard/hooks/useEventsSummary'
 import { api } from '@/lib/api'
 
-type EventTab = 'proximos' | 'pasados'
+type EventTab = 'proximos' | 'pasados' | 'cancelados'
 
 /**
  * Módulo 2 — Dashboard Centralizado de Eventos y Costos.
@@ -19,11 +19,15 @@ export function DashboardPage() {
   const { data: events = [], isLoading, refetch } = useEvents()
   const [currentTab, setCurrentTab] = useState<EventTab>('proximos')
 
-  // Filtrado exclusivo por pestaña (Próximos vs Pasados)
+  // Filtrado exclusivo por pestaña (Próximos / Pasados / Cancelados)
   const visible = useMemo(() => {
     return events.filter((e) => {
       const d = daysUntil(e.eventDate)
-      return currentTab === 'proximos' ? d >= 0 : d < 0
+      const isCancelled = e.cancelled === true
+      if (currentTab === 'cancelados') return isCancelled
+      if (currentTab === 'proximos') return d >= 0 && !isCancelled
+      if (currentTab === 'pasados') return d < 0 && !isCancelled
+      return false
     })
   }, [events, currentTab])
 
@@ -45,6 +49,19 @@ export function DashboardPage() {
     }
   }
 
+    const handleCancelEvent = async (
+    eventId: string,
+  ) => {
+    try {
+      await api.patch(`/api/events/${eventId}`, {
+        cancelled: 1,
+      })
+      await refetch()
+    } catch (error) {
+      console.error('Fallo en la cancelacion:', error)
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -62,7 +79,7 @@ export function DashboardPage() {
             <p className="text-xs text-gray-500 mt-0.5">Agenda completa y control de estado de pagos</p>
           </div>
 
-          {/* Switch de Pestañas (Próximos / Pasados) */}
+          {/* Switch de Pestañas (Próximos / Pasados / Cancelados) */}
           <div className="flex items-center bg-gray-100/80 p-1 rounded-xl border border-gray-200/60">
             <button
               type="button"
@@ -88,6 +105,18 @@ export function DashboardPage() {
             >
               Eventos Pasados
             </button>
+            <button
+              type="button"
+              onClick={() => setCurrentTab('cancelados')}
+              className={cn(
+                'px-4 py-1.5 text-xs font-semibold rounded-lg transition-all',
+                currentTab === 'cancelados'
+                  ? 'bg-brand text-white shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900',
+              )}
+            >
+              Eventos Cancelados
+            </button>
           </div>
         </div>
 
@@ -106,13 +135,16 @@ export function DashboardPage() {
           <>
             <EventTable
               events={visible}
-              isPast={currentTab === 'pasados'}
+              isNext={currentTab === 'proximos'}
               onReschedule={handleRescheduleEvent}
+              onCancel={handleCancelEvent}
             />
             <EventCards
               events={visible}
-              isPast={currentTab === 'pasados'}
+              isNext={currentTab === 'proximos'}
               onReschedule={handleRescheduleEvent}
+              onCancel={handleCancelEvent}
+
             />
           </>
         )}

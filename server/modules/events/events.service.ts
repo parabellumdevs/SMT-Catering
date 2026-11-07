@@ -84,6 +84,7 @@ export class EventsService {
           locationAddress: r.direccion_evento,
           distanceKm: Number(r.distancia_km) || 10.0,
           insuranceCents: Math.round((Number(r.monto_seguro) || 0) * 100),
+          cancelled: r.evento_cancelado === 1,
         };
       }),
     );
@@ -221,16 +222,12 @@ export class EventsService {
       kitchenNotes?: string;
       eventDate?: string;
       startTime?: string;
+      cancelled?: number;
     },
   ) {
     const dbClient = getDatabase();
     const idReserva = Number(rawId.replace("EV-", ""));
-    console.log(
-      "Updating event",
-      idReserva,
-      updates.eventDate,
-      updates.startTime,
-    );
+
     await dbClient.execute(
       `UPDATE reserva
        SET
@@ -239,7 +236,8 @@ export class EventsService {
          notas_cocina = COALESCE(?, notas_cocina),
          fecha_actualizacion = CURRENT_TIMESTAMP,
          fecha_evento = COALESCE(?, fecha_evento),
-          hora_inicio = COALESCE(?, hora_inicio)
+         hora_inicio = COALESCE(?, hora_inicio),
+         evento_cancelado = COALESCE(?, evento_cancelado)
        WHERE id_reserva = ?`,
       [
         updates.status ?? null,
@@ -247,6 +245,7 @@ export class EventsService {
         updates.kitchenNotes ?? null,
         updates.eventDate ?? null,
         updates.startTime ?? null,
+        updates.cancelled ?? null,
         idReserva,
       ],
     );
