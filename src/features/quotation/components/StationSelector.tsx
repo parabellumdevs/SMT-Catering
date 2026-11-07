@@ -137,26 +137,72 @@ export function StationSelector() {
 
       {/* Sección de Adicionales */}
       <div className="pt-4 border-t border-hairline">
-        <h3 className="mb-3 text-heading-lg font-light text-ink">Adicionales</h3>
-        <div className="flex flex-wrap gap-2">
+                  <h2 className="text-lg font-semibold text-ink mb-4">Adicionales</h2>
+
+        <div className="flex flex-wrap gap-2 ">
           {extras.map((extra) => {
             const selected = extraIds.includes(extra.id)
             return (
-              <button
-                key={extra.id}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => toggleExtra(extra.id)}
-                className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors ${
-                  selected
-                    ? 'border-[#581c25] bg-[#581c25] text-white font-medium'
-                    : 'border-hairline bg-canvas text-ink-secondary hover:bg-canvas-soft'
-                }`}
-              >
-                {extra.label}
-                <span className="tnum opacity-80">{formatCurrency(extra.pricePerGuestCents)}</span>
-              </button>
-            )
+          <div
+            key={extra.id}
+            className={`flex flex-col sm:flex-row rounded-lg border p-4 gap-4 transition-all bg-canvas w-full ${
+              selected ? 'border-[#581c25] ring-1 ring-[#581c25]/20' : 'border-hairline hover:border-hairline-input'
+            }`}
+          >
+            {/* Imagen de la Barra de Tragos */}
+            <div className="relative h-32 w-full sm:w-48 shrink-0 overflow-hidden rounded-lg bg-canvas-soft">
+              <img
+              src='src/assets/islas/tragos.jpg'
+ // 👈 Pone aquí la URL de tu imagen o usa extra.imagen si viene del backend
+                alt={extra.label}
+                className="h-full w-full object-cover"
+              />
+              <div className="absolute top-2 left-2 rounded-md bg-[#581c25] px-2.5 py-1 text-xs font-semibold text-white shadow-md tnum">
+                {formatCurrency(extra.pricePerGuestCents)}/pp
+              </div>
+            </div>
+
+            {/* Información */}
+            <div className="flex flex-1 flex-col justify-between">
+              <div>
+                <h4 className="font-semibold text-ink">{extra.label}</h4>
+                <p className="mt-1 text-xs text-ink-secondary leading-relaxed">
+                  "Coctelería profesional, barra open bar y tragos de autor adaptados para tu evento corporativo."
+                </p>
+              </div>
+
+              {/* Botón de selección y Subtotal */}
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-hairline/60">
+                <button
+                  type="button"
+                  onClick={() => toggleExtra(extra.id)}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-colors ${
+                    selected
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      : 'border border-hairline bg-canvas text-ink hover:bg-canvas-soft'
+                  }`}
+                >
+                  {selected ? (
+                    <>
+                      <Check className="h-3.5 w-3.5" /> Seleccionada
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-3.5 w-3.5 text-[#581c25]" /> Agregar Servicio
+                    </>
+                  )}
+                </button>
+
+                <div className="text-right">
+                  <span className="text-[11px] uppercase tracking-wider text-ink-mute block">Total adicional</span>
+                  <span className="text-sm font-semibold text-ink tnum">
+                    {formatCurrency(extra.pricePerGuestCents * guests)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
           })}
         </div>
       </div>
