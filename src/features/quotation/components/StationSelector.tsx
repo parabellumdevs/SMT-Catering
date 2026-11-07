@@ -31,6 +31,11 @@ export function StationSelector() {
   )
 
   const selectedCount = stationIds.length
+  const pluralSuffix = selectedCount > 1 ? 's' : ''
+  const selectedCountLabel =
+    selectedCount === 0
+      ? 'Mínimo 1'
+      : `${selectedCount} seleccionada${pluralSuffix}`
 
   return (
     <div className="rounded-2xl border border-hairline bg-canvas p-6 shadow-sm space-y-6">
@@ -43,7 +48,7 @@ export function StationSelector() {
           <h2 className="text-lg font-semibold text-ink">Estaciones de Comida</h2>
         </div>
         <span className="rounded-full bg-[#581c25]/10 px-3 py-1 text-xs font-medium text-[#581c25]">
-          {selectedCount === 0 ? 'Mínimo 1' : `${selectedCount} seleccionada${selectedCount > 1 ? 's' : ''}`}
+          {selectedCountLabel}
         </span>
       </div>
 
