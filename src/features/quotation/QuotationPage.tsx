@@ -3,25 +3,13 @@ import { AvailabilityCalendar } from '@/features/quotation/components/Availabili
 import { DietaryMatrix } from '@/features/quotation/components/DietaryMatrix'
 import { GuestSlider } from '@/features/quotation/components/GuestSlider'
 import { LocationField } from '@/features/quotation/components/LocationField'
+import { TimeSlotSelector } from '@/features/quotation/components/TimeSlotSelector'
 import {
   PriceSummaryDrawer,
   PriceSummaryPanel,
 } from '@/features/quotation/components/PriceSummary'
 import { StationSelector } from '@/features/quotation/components/StationSelector'
 
-/**
- * Módulo 1 — Cotizador en Tiempo Real (B2B Client-Facing).
- *
- * Arquitectura y Flujo:
- * - Diseñado para clientes corporativos y socias de SMT Catering.
- * - Diseño responsivo mobile-first
- * - Compone los 5 sub-módulos del formulario:
- *   1. `GuestSlider`: Rango estricto de comensales [50–120].
- *   2. `StationSelector`: Estaciones culinarias gastronómicas y adicionales.
- *   3. `DietaryMatrix`: Restricciones alimentarias (celíacos, veganos, etc.) con validación viva.
- *   4. `LocationField`: Dirección del evento (radio de cobertura de 20 km).
- *   5. `AvailabilityCalendar`: Selección de fecha con antelación mínima, solo viernes, sábados y domingos, y bloqueo de fechas.
- */
 export function QuotationPage() {
   return (
     <>
@@ -31,11 +19,28 @@ export function QuotationPage() {
       />
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-8">
-          <GuestSlider />
+          {/* Tarjeta unificada: 1. Información del Evento */}
+          <div className="rounded-2xl border border-hairline bg-canvas p-6 shadow-sm space-y-6">
+            <div className="flex items-center gap-3 border-b border-hairline pb-4">
+              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[#581c25] text-xs font-bold text-white">
+                1
+              </span>
+              <h2 className="text-lg font-semibold text-ink">Información del Evento</h2>
+            </div>
+
+            <GuestSlider />
+
+            {/* Grid de 2 columnas para Fecha y Horario */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch">
+              <AvailabilityCalendar />
+              <TimeSlotSelector />
+            </div>
+
+            <LocationField />
+          </div>
+
           <StationSelector />
           <DietaryMatrix />
-          <LocationField />
-          <AvailabilityCalendar />
         </div>
         <PriceSummaryPanel />
       </div>

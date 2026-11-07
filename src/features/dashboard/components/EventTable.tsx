@@ -47,7 +47,6 @@ function getContactName(event: EventRecord): string {
 }
 
 function sortEvents(events: EventRecord[], isNext: boolean): EventRecord[] {
-  console.log(events)
   return [...events].sort((a, b) => (
     isNext
     ? a.eventDate.localeCompare(b.eventDate)

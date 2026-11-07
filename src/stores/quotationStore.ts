@@ -1,13 +1,14 @@
-import { create } from 'zustand'
+import { create } from "zustand";
 
-import { GUEST_MAX, GUEST_MIN, type StationId } from '@/lib/constants'
-import type { DietaryRequirement } from '@/types/domain'
-import type { GeoPoint } from '@shared/geo'
+import { GUEST_MAX, GUEST_MIN, type StationId } from "@/lib/constants";
+import type { DietaryRequirement } from "@/types/domain";
+import type { GeoPoint } from "@shared/geo";
 
 /**
  * Función pura que restringe el número de comensales al rango operativo estricto [50–120].
  */
-const clamp = (n: number): number => Math.min(GUEST_MAX, Math.max(GUEST_MIN, n))
+const clamp = (n: number): number =>
+  Math.min(GUEST_MAX, Math.max(GUEST_MIN, n));
 
 /**
  * Estado global del Cotizador en Tiempo Real (Módulo 1).
@@ -18,44 +19,51 @@ const clamp = (n: number): number => Math.min(GUEST_MAX, Math.max(GUEST_MIN, n))
  * - `reset`: restaura el cotizador a valores predeterminados seguros tras confirmar una reserva.
  */
 interface QuotationState {
-  guests: number
+  guests: number;
   /** true cuando el usuario intentó salir del rango [50-120] (mostrar advertencia amigable). */
-  rangeWarning: boolean
-  stationIds: StationId[]
+  rangeWarning: boolean;
+  stationIds: StationId[];
   /** Ids de ítems adicionales (tarifas category 'extra'). */
-  extraIds: string[]
-  dietary: DietaryRequirement
+  extraIds: string[];
+  dietary: DietaryRequirement;
   /** Dirección donde se realiza el evento (lo que se ve en el campo). */
-  locationAddress: string
+  locationAddress: string;
   /** Coordenadas de la sugerencia elegida; null hasta que se elige una dentro de la zona de cobertura. */
-  locationPoint: GeoPoint | null
+  locationPoint: GeoPoint | null;
   /** Distancia en línea recta al punto base, en km; null mientras no haya dirección válida. */
-  locationDistanceKm: number | null
-  eventDate: string | null
-  setGuests: (raw: number) => void
-  dismissRangeWarning: () => void
-  toggleStation: (id: StationId) => void
-  toggleExtra: (id: string) => void
-  setDietary: (patch: Partial<DietaryRequirement>) => void
+  locationDistanceKm: number | null;
+  eventDate: string | null;
+  setGuests: (raw: number) => void;
+  dismissRangeWarning: () => void;
+  toggleStation: (id: StationId) => void;
+  toggleExtra: (id: string) => void;
+  setDietary: (patch: Partial<DietaryRequirement>) => void;
   /** Al escribir se invalida la selección anterior (coordenadas y distancia). */
-  setLocationAddress: (address: string) => void
+  setLocationAddress: (address: string) => void;
   /** Se llama al elegir una sugerencia dentro de la zona de cobertura. */
-  selectLocation: (selection: { address: string; point: GeoPoint; distanceKm: number }) => void
-  setEventDate: (iso: string | null) => void
-  reset: () => void
+  selectLocation: (selection: {
+    address: string;
+    point: GeoPoint;
+    distanceKm: number;
+  }) => void;
+  setEventDate: (iso: string | null) => void;
+  reset: () => void;
+  startTime?: string;
+  setStartTime: (time: string) => void;
 }
 
 const initialState = {
   guests: 80,
   rangeWarning: false,
-  stationIds: ['entradas', 'pastas'] as StationId[],
+  stationIds: ["entradas", "pastas"] as StationId[],
   extraIds: [] as string[],
-  dietary: { celiacos: 0, vegetarianos: 0, veganos: 0, alergias: '' },
-  locationAddress: '',
+  dietary: { celiacos: 0, vegetarianos: 0, veganos: 0, alergias: "" },
+  locationAddress: "",
   locationPoint: null as GeoPoint | null,
   locationDistanceKm: null as number | null,
   eventDate: null as string | null,
-}
+  startTime: "19:30",
+};
 
 export const useQuotationStore = create<QuotationState>()((set) => ({
   ...initialState,
@@ -76,9 +84,18 @@ export const useQuotationStore = create<QuotationState>()((set) => ({
     })),
   setDietary: (patch) => set((s) => ({ dietary: { ...s.dietary, ...patch } })),
   setLocationAddress: (address) =>
-    set({ locationAddress: address, locationPoint: null, locationDistanceKm: null }),
+    set({
+      locationAddress: address,
+      locationPoint: null,
+      locationDistanceKm: null,
+    }),
   selectLocation: ({ address, point, distanceKm }) =>
-    set({ locationAddress: address, locationPoint: point, locationDistanceKm: distanceKm }),
+    set({
+      locationAddress: address,
+      locationPoint: point,
+      locationDistanceKm: distanceKm,
+    }),
   setEventDate: (iso) => set({ eventDate: iso }),
+  setStartTime: (time) => set({ startTime: time }),
   reset: () => set(initialState),
-}))
+}));
