@@ -27,7 +27,7 @@ import { useQuotationStore } from '@/stores/quotationStore'
 const WEEKDAYS = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'] as const
 
 /** Días de la semana en que se reserva (según date-fns getDay): viernes, sábado y domingo. */
-const BOOKABLE_WEEKDAYS = [5, 6, 0]
+const BOOKABLE_WEEKDAYS = new Set([5, 6, 0])
 
 export function AvailabilityCalendar() {
   const eventDate = useQuotationStore((s) => s.eventDate)
@@ -89,9 +89,18 @@ export function AvailabilityCalendar() {
           const iso = format(day, 'yyyy-MM-dd')
           const isTooSoon = isBefore(day, minBookingDate)
           const isBlocked = blockedDates.has(iso)
-          const isWrongWeekday = !BOOKABLE_WEEKDAYS.includes(getDay(day))
+          const isWrongWeekday = !BOOKABLE_WEEKDAYS.has(getDay(day))
           const isSelected = selectedDateObj ? isSameDay(day, selectedDateObj) : false
           const inMonth = isSameMonth(day, currentMonth)
+          let availabilityTitle = 'Disponible'
+
+          if (isTooSoon) {
+            availabilityTitle = `Requiere ${MIN_BOOKING_DAYS_ADVANCE}d de anticipación`
+          } else if (isBlocked) {
+            availabilityTitle = 'Ocupada'
+          } else if (isWrongWeekday) {
+            availabilityTitle = 'Solo viernes, sábados y domingos'
+          }
 
           return (
             <button
@@ -100,15 +109,7 @@ export function AvailabilityCalendar() {
               disabled={isTooSoon || isBlocked || isWrongWeekday}
               onClick={() => setEventDate(isSelected ? null : iso)}
               aria-pressed={isSelected}
-              title={
-                isTooSoon
-                  ? `Requiere ${MIN_BOOKING_DAYS_ADVANCE}d de anticipación`
-                  : isBlocked
-                    ? 'Ocupada'
-                    : isWrongWeekday
-                      ? 'Solo viernes, sábados y domingos'
-                      : 'Disponible'
-              }
+              title={availabilityTitle}
               className={cn(
                 'relative flex h-10 w-full flex-col items-center justify-center rounded-md text-sm transition-colors',
                 !inMonth && 'opacity-25',

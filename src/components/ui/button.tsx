@@ -33,7 +33,7 @@ export interface ButtonProps
   asChild?: boolean
 }
 
-export function Button({ className, variant, size, asChild = false, type = 'button', ...props }: ButtonProps) {
+export function Button({ className, variant, size, asChild = false, type = 'button', ...props }: Readonly<ButtonProps>) {
   const Comp = asChild ? Slot : 'button'
   return (
     <Comp
