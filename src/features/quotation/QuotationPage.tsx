@@ -5,7 +5,6 @@ import { GuestSlider } from '@/features/quotation/components/GuestSlider'
 import { LocationField } from '@/features/quotation/components/LocationField'
 import { TimeSlotSelector } from '@/features/quotation/components/TimeSlotSelector'
 import {
-  PriceSummaryDrawer,
   PriceSummaryPanel,
 } from '@/features/quotation/components/PriceSummary'
 import { StationSelector } from '@/features/quotation/components/StationSelector'
@@ -17,7 +16,7 @@ export function QuotationPage() {
         title="Cotizá tu evento"
         description="Cotización transparente en tiempo real para eventos corporativos de 50 a 120 comensales."
       />
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px] items-start">
         <div className="space-y-8">
           {/* Tarjeta unificada: 1. Información del Evento */}
           <div className="rounded-2xl border border-hairline bg-canvas p-6 shadow-sm space-y-6">
@@ -44,7 +43,6 @@ export function QuotationPage() {
         </div>
         <PriceSummaryPanel />
       </div>
-      <PriceSummaryDrawer />
     </>
   )
 }
