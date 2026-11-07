@@ -137,7 +137,7 @@ export class EventsService {
         body.distanceKm || 10.0,
         0,
         body.status || "Señado / Confirmado",
-        body.paymentStatus || "SEÑA_ABONADA",
+        body.paymentStatus || "SALDO_PENDIENTE",
         body.kitchenNotes || "",
         totalPesos,
         seguroPesos,
