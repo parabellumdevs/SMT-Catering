@@ -164,7 +164,10 @@ export function EventTable({ events, isPast = false, onReschedule }: EventTableP
             </TableRow>
           </TableHead>
           <TableBody>
-            {sortedEvents.map((event) => (
+            {sortedEvents.map((event, index) => {
+              const isNearBottom = index >= sortedEvents.length - 2
+              const currentMenuPosition = isNearBottom ? 'above' : 'below'
+              return (
               <TableRow
                 key={event.id}
                 className="hover:bg-gray-50/40 transition-colors border-b border-gray-100/60 last:border-0 relative"
@@ -219,7 +222,7 @@ export function EventTable({ events, isPast = false, onReschedule }: EventTableP
                     <EventActions
                       event={event}
                       isOpen={openMenuId === event.id}
-                      menuPosition="below"
+                      menuPosition={currentMenuPosition}
                       onToggle={() => setOpenMenuId(openMenuId === event.id ? null : event.id)}
                       onReschedule={handleOpenReschedule}
                       onClose={() => setOpenMenuId(null)}
@@ -227,7 +230,7 @@ export function EventTable({ events, isPast = false, onReschedule }: EventTableP
                   </TableCell>
                 )}
               </TableRow>
-            ))}
+)})}
           </TableBody>
         </Table>
       </div>
