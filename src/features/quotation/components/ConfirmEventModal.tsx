@@ -15,8 +15,8 @@ import { useQuotationStore } from '@/stores/quotationStore'
 import type { PaymentStatus } from '@/types/domain'
 
 interface Props {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  readonly open: boolean
+  readonly onOpenChange: (open: boolean) => void
 }
 
 export function ConfirmEventModal({ open, onOpenChange }: Props) {
@@ -55,6 +55,7 @@ export function ConfirmEventModal({ open, onOpenChange }: Props) {
       insuranceCents,
       dietary,
       kitchenNotes: kitchenNotes.trim(),
+      cancelled: false,
     })
     setCreatedEventId(newRecord.id)
     resetQuotation()
