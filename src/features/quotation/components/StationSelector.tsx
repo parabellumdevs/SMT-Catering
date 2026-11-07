@@ -8,16 +8,11 @@ import { useQuotationStore } from '@/stores/quotationStore'
 
 /**
  * Selector interactivo de estaciones culinarias y adicionales (Módulo 1: Cotizador).
- *
- * Arquitectura y Sincronización:
- * - Renderiza el catálogo gastronómico de SMT (Entradas, Pastas, Parrilla, Asiática, Dulce) y extras.
- * - Los precios unitarios por comensal se consultan en tiempo real desde `tariffStore`,
- *   asegurando que cualquier cambio de tarifas del Módulo 3 impacte visualmente en el cotizador.
- * - El selector de `extras` se memoriza con `useMemo` para evitar re-renderizados infinitos con React 19.
  */
 export function StationSelector() {
   const stationIds = useQuotationStore((s) => s.stationIds)
   const extraIds = useQuotationStore((s) => s.extraIds)
+  const guests = useQuotationStore((s) => s.guests)
   const toggleStation = useQuotationStore((s) => s.toggleStation)
   const toggleExtra = useQuotationStore((s) => s.toggleExtra)
   const tariffs = useTariffStore((s) => s.tariffs)
@@ -26,7 +21,7 @@ export function StationSelector() {
 
   useEffect(() => {
     if (!isLoaded) {
-      fetchTariffs()
+      void fetchTariffs()
     }
   }, [isLoaded, fetchTariffs])
 
@@ -35,72 +30,182 @@ export function StationSelector() {
     [tariffs],
   )
 
+  const selectedCount = stationIds.length
+  const pluralSuffix = selectedCount > 1 ? 's' : ''
+  const selectedCountLabel =
+    selectedCount === 0
+      ? 'Mínimo 1'
+      : `${selectedCount} seleccionada${pluralSuffix}`
+
   return (
-    <section aria-labelledby="stations-label">
-      <h2 id="stations-label" className="mb-3 text-heading-lg font-light text-ink">
-        Estaciones culinarias
-      </h2>
-      <div className="grid gap-3 sm:grid-cols-2">
+    <div className="rounded-2xl border border-hairline bg-canvas p-6 shadow-sm space-y-6">
+      {/* Encabezado de la Sección */}
+      <div className="flex items-center justify-between border-b border-hairline pb-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#581c25] text-xs font-bold text-white">
+            2
+          </span>
+          <h2 className="text-lg font-semibold text-ink">Estaciones de Comida</h2>
+        </div>
+        <span className="rounded-full bg-[#581c25]/10 px-3 py-1 text-xs font-medium text-[#581c25]">
+          {selectedCountLabel}
+        </span>
+      </div>
+
+      {/* Listado de Estaciones */}
+      <div className="space-y-4">
         {ESTACIONES_GASTRONOMICAS.map((station) => {
           const selected = stationIds.includes(station.id)
+          const priceCents =
+            tariffs.find((t) => t.id === station.id)?.pricePerGuestCents ??
+            station.precioPorComensalCentavos ?? 0
+          
+          const subtotalCents = priceCents * guests
+
           return (
-            <button
+            <div
               key={station.id}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => toggleStation(station.id)}
-              className={`rounded-lg border p-4 text-left transition-colors ${
-                selected
-                  ? 'border-primary bg-primary/5'
-                  : 'border-hairline bg-canvas hover:border-hairline-input'
+              className={`flex flex-col sm:flex-row rounded-lg border p-4 gap-4 transition-all bg-canvas ${
+                selected ? 'border-[#581c25] ring-1 ring-[#581c25]/20' : 'border-hairline hover:border-hairline-input'
               }`}
             >
-              <div className="flex items-start justify-between gap-2">
-                <span className="font-normal text-ink">{station.nombre}</span>
-                <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-pill ${
-                    selected ? 'bg-primary text-white' : 'bg-canvas-soft text-ink-mute'
-                  }`}
-                  aria-hidden="true"
-                >
-                  {selected ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-                </span>
+              {/* Imagen y Badge de Precio */}
+              <div className="relative h-32 w-full sm:w-48 shrink-0 overflow-hidden rounded-lg bg-canvas-soft">
+                {station.nombre ? (
+                  <img
+                    src={`${'src/assets/islas/'+station.id}.jpg`}
+                    alt={station.nombre}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs text-ink-mute">
+                    Sin imagen
+                  </div>
+                )}
+                <div className="absolute top-2 left-2 rounded-md bg-[#581c25] px-2.5 py-1 text-xs font-semibold text-white shadow-md tnum">
+                  {formatCurrency(priceCents)}/pp
+                </div>
               </div>
-              <p className="mt-1 text-xs text-ink-mute">{station.descripcion}</p>
-              <p className="mt-2 text-sm text-ink-secondary tnum">
-                {formatCurrency(
-                  tariffs.find((t) => t.id === station.id)?.pricePerGuestCents ??
-                    station.precioPorComensalCentavos,
-                )}{' '}
-                / comensal
-              </p>
-            </button>
+
+              {/* Información y Contenido */}
+              <div className="flex flex-1 flex-col justify-between">
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h3 className="font-semibold text-ink">{station.nombre}</h3>
+                    </div>
+                  </div>
+                  <p className="mt-1.5 text-xs text-ink-secondary leading-relaxed">
+                    {station.descripcion}
+                  </p>
+                </div>
+
+                {/* Botón de Acción y Subtotal */}
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-hairline/60">
+                  <button
+                    type="button"
+                    onClick={() => toggleStation(station.id)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-colors ${
+                      selected
+                        ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                        : 'border border-hairline bg-canvas text-ink hover:bg-canvas-soft'
+                    }`}
+                  >
+                    {selected ? (
+                      <>
+                        <Check className="h-3.5 w-3.5" /> Seleccionada
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-3.5 w-3.5 text-[#581c25]" /> Agregar Isla
+                      </>
+                    )}
+                  </button>
+
+                  <div className="text-right">
+                    <span className="text-[11px] uppercase tracking-wider text-ink-mute block">Subtotal isla</span>
+                    <span className="text-sm font-semibold text-ink tnum">
+                      {formatCurrency(subtotalCents)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           )
         })}
       </div>
 
-      <h2 className="mb-3 mt-6 text-heading-lg font-light text-ink">Adicionales</h2>
-      <div className="flex flex-wrap gap-2">
-        {extras.map((extra) => {
-          const selected = extraIds.includes(extra.id)
-          return (
-            <button
-              key={extra.id}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => toggleExtra(extra.id)}
-              className={`flex items-center gap-2 rounded-pill border px-4 py-2 text-sm transition-colors ${
-                selected
-                  ? 'border-primary bg-primary text-white'
-                  : 'border-hairline bg-canvas text-ink-secondary hover:bg-canvas-soft'
-              }`}
-            >
-              {extra.label}
-              <span className="tnum opacity-80">{formatCurrency(extra.pricePerGuestCents)}</span>
-            </button>
-          )
-        })}
+      {/* Sección de Adicionales */}
+      <div className="pt-4 border-t border-hairline">
+                  <h2 className="text-lg font-semibold text-ink mb-4">Adicionales</h2>
+
+        <div className="flex flex-wrap gap-2 ">
+          {extras.map((extra) => {
+            const selected = extraIds.includes(extra.id)
+            return (
+          <div
+            key={extra.id}
+            className={`flex flex-col sm:flex-row rounded-lg border p-4 gap-4 transition-all bg-canvas w-full ${
+              selected ? 'border-[#581c25] ring-1 ring-[#581c25]/20' : 'border-hairline hover:border-hairline-input'
+            }`}
+          >
+            {/* Imagen de la Barra de Tragos */}
+            <div className="relative h-32 w-full sm:w-48 shrink-0 overflow-hidden rounded-lg bg-canvas-soft">
+              <img
+              src='src/assets/islas/tragos.jpg'
+ // 👈 Pone aquí la URL de tu imagen o usa extra.imagen si viene del backend
+                alt={extra.label}
+                className="h-full w-full object-cover"
+              />
+              <div className="absolute top-2 left-2 rounded-md bg-[#581c25] px-2.5 py-1 text-xs font-semibold text-white shadow-md tnum">
+                {formatCurrency(extra.pricePerGuestCents)}/pp
+              </div>
+            </div>
+
+            {/* Información */}
+            <div className="flex flex-1 flex-col justify-between">
+              <div>
+                <h4 className="font-semibold text-ink">{extra.label}</h4>
+                <p className="mt-1 text-xs text-ink-secondary leading-relaxed">
+                  Coctelería profesional, barra open bar y tragos de autor adaptados para tu evento corporativo.
+                </p>
+              </div>
+
+              {/* Botón de selección y Subtotal */}
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-hairline/60">
+                <button
+                  type="button"
+                  onClick={() => toggleExtra(extra.id)}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-colors ${
+                    selected
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      : 'border border-hairline bg-canvas text-ink hover:bg-canvas-soft'
+                  }`}
+                >
+                  {selected ? (
+                    <>
+                      <Check className="h-3.5 w-3.5" /> Seleccionada
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-3.5 w-3.5 text-[#581c25]" /> Agregar Servicio
+                    </>
+                  )}
+                </button>
+
+                <div className="text-right">
+                  <span className="text-[11px] uppercase tracking-wider text-ink-mute block">Total adicional</span>
+                  <span className="text-sm font-semibold text-ink tnum">
+                    {formatCurrency(extra.pricePerGuestCents * guests)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+          })}
+        </div>
       </div>
-    </section>
+    </div>
   )
 }
