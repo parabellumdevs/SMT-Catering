@@ -311,7 +311,7 @@ export function EventCards({ events, isNext = false, onReschedule, onCancel }: E
                   onToggle={() => setOpenMenuId(openMenuId === event.id ? null : event.id)}
                   onReschedule={handleOpenReschedule}
                   onClose={() => setOpenMenuId(null)}
-                  onCancel={() => onCancel}
+                  onCancel={() => onCancel(event.id)}
                 />
               )}
             </div>
