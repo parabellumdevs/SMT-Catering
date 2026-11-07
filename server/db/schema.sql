@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS reserva (
   distancia_km DECIMAL(4,2) CHECK(distancia_km <= 20.0),
   evento_cancelado INTEGER NOT NULL DEFAULT 0,
   estado_evento VARCHAR(30) NOT NULL DEFAULT 'Presupuestado',
-  estado_pago VARCHAR(30) NOT NULL DEFAULT 'SEÑA_PENDIENTE',
+  estado_pago VARCHAR(30) NOT NULL DEFAULT 'SALDO_PENDIENTE',
   notas_cocina TEXT DEFAULT '',
   monto_total DECIMAL(10,2) NOT NULL,
   monto_seguro DECIMAL(10,2) NOT NULL DEFAULT 0.00,

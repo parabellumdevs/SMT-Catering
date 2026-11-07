@@ -18,10 +18,8 @@ const eventStatus: Record<EventStatus, { variant: BadgeVariant; label: string }>
  * Invariante: Avisar saldo pendiente 7 días antes de la fecha del evento.
  */
 const paymentStatus: Record<PaymentStatus, { variant: BadgeVariant; label: string }> = {
-  SEÑA_PENDIENTE: { variant: 'warn', label: 'Seña pendiente' },
-  SEÑA_ABONADA: { variant: 'ok', label: 'Seña abonada' },
   SALDO_PENDIENTE: { variant: 'info', label: 'Saldo pendiente' },
-  TOTALMENTE_SALDADO: { variant: 'neutral', label: 'Saldado' },
+  SALDADO: { variant: 'ok', label: 'Saldado' },
 }
 
 export function EventStatusBadge({ status }: { status: EventStatus }) {

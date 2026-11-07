@@ -1,8 +1,8 @@
-import { getDatabase } from '../../db/client.ts'
+import { getDatabase } from "../../db/client.ts";
 
 export class EventsService {
   static async fetchAllEvents() {
-    const dbClient = getDatabase()
+    const dbClient = getDatabase();
     const rows = await dbClient.query(
       `SELECT
         r.*,
@@ -11,7 +11,7 @@ export class EventsService {
       FROM reserva r
       JOIN cliente c ON c.id_cliente = r.id_cliente
       ORDER BY r.fecha_evento ASC`,
-    )
+    );
 
     const events = await Promise.all(
       rows.map(async (r: any) => {
@@ -35,29 +35,29 @@ export class EventsService {
              WHERE id_reserva = ? AND estado = 'confirmado'`,
             [r.id_reserva],
           ),
-        ])
+        ]);
 
-        const stations = stationRows.map((s: any) => s.codigo)
+        const stations = stationRows.map((s: any) => s.codigo);
 
-        let celiacos = 0
-        let vegetarianos = 0
-        let veganos = 0
-        const alergias: string[] = []
+        let celiacos = 0;
+        let vegetarianos = 0;
+        let veganos = 0;
+        const alergias: string[] = [];
 
         for (const d of dietaryRows) {
-          const tipo = (d.tipo_restriccion || '').toLowerCase()
-          if (tipo.includes('celia')) celiacos += d.cantidad_personas
-          else if (tipo.includes('vege')) vegetarianos += d.cantidad_personas
-          else if (tipo.includes('vega')) veganos += d.cantidad_personas
-          else if (tipo.includes('alerg')) {
-            if (d.observaciones) alergias.push(d.observaciones)
+          const tipo = (d.tipo_restriccion || "").toLowerCase();
+          if (tipo.includes("celia")) celiacos += d.cantidad_personas;
+          else if (tipo.includes("vege")) vegetarianos += d.cantidad_personas;
+          else if (tipo.includes("vega")) veganos += d.cantidad_personas;
+          else if (tipo.includes("alerg")) {
+            if (d.observaciones) alergias.push(d.observaciones);
           }
         }
 
-        let depositPesos = 0
+        let depositPesos = 0;
         for (const p of pagos) {
-          if (p.tipo_pago === 'SEÑA' || p.tipo_pago === 'TOTAL') {
-            depositPesos += Number(p.monto) || 0
+          if (p.tipo_pago === "SEÑA" || p.tipo_pago === "TOTAL") {
+            depositPesos += Number(p.monto) || 0;
           }
         }
 
@@ -67,38 +67,40 @@ export class EventsService {
           eventDate: r.fecha_evento,
           guests: r.cantidad_invitados,
           stationIds: stations,
-          status: r.estado_evento || 'Presupuestado',
-          paymentStatus: r.estado_pago || 'SEÑA_PENDIENTE',
+          status: r.estado_evento || "Presupuestado",
+          paymentStatus: r.estado_pago || "-",
           totalCents: Math.round((Number(r.monto_total) || 0) * 100),
           depositCents: Math.round(depositPesos * 100),
           dietary: {
             celiacos,
             vegetarianos,
             veganos,
-            alergias: alergias.join(', '),
+            alergias: alergias.join(", "),
           },
-          kitchenNotes: r.notas_cocina || '',
+          kitchenNotes: r.notas_cocina || "",
           startTime: r.hora_inicio,
           endTime: r.hora_fin,
           durationHours: Number(r.duracion_horas) || 3.0,
           locationAddress: r.direccion_evento,
           distanceKm: Number(r.distancia_km) || 10.0,
           insuranceCents: Math.round((Number(r.monto_seguro) || 0) * 100),
-        }
+          cancelled: r.evento_cancelado === 1,
+        };
       }),
-    )
+    );
 
-    return events
+    return events;
   }
 
   static async createEvent(body: any) {
-    const dbClient = getDatabase()
+    const dbClient = getDatabase();
 
     // 1. Cliente B2B (obtener o crear)
-    let cliente = await dbClient.queryOne('SELECT id_cliente FROM cliente WHERE razon_social = ?', [
-      body.clientName,
-    ])
-    let idCliente = cliente?.id_cliente
+    let cliente = await dbClient.queryOne(
+      "SELECT id_cliente FROM cliente WHERE razon_social = ?",
+      [body.clientName],
+    );
+    let idCliente = cliente?.id_cliente;
     if (!idCliente) {
       const insertResult = await dbClient.execute(
         `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
@@ -107,16 +109,16 @@ export class EventsService {
           body.clientName,
           `30-${Date.now().toString().slice(-8)}-1`,
           body.clientName,
-          `eventos@${body.clientName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'cliente'}.com`,
-          'temp_hash',
+          `eventos@${body.clientName.toLowerCase().replace(/[^a-z0-9]/g, "") || "cliente"}.com`,
+          "temp_hash",
         ],
-      )
-      idCliente = Number(insertResult.lastInsertId)
+      );
+      idCliente = Number(insertResult.lastInsertId);
     }
 
     // 2. Reserva
-    const totalPesos = (body.totalCents || 0) / 100
-    const seguroPesos = (body.insuranceCents || 0) / 100
+    const totalPesos = (body.totalCents || 0) / 100;
+    const seguroPesos = (body.insuranceCents || 0) / 100;
 
     const reservaResult = await dbClient.execute(
       `INSERT INTO reserva (
@@ -127,37 +129,37 @@ export class EventsService {
       [
         idCliente,
         body.eventDate,
-        body.startTime || '19:30',
-        body.endTime || '22:30',
+        body.startTime || "19:30",
+        body.endTime || "22:30",
         body.durationHours || 3.0,
         body.guests || 50,
-        body.locationAddress || 'CABA',
+        body.locationAddress || "CABA",
         body.distanceKm || 10.0,
         0,
-        body.status || 'Señado / Confirmado',
-        body.paymentStatus || 'SEÑA_ABONADA',
-        body.kitchenNotes || '',
+        body.status || "Señado / Confirmado",
+        body.paymentStatus || "SALDO_PENDIENTE",
+        body.kitchenNotes || "",
         totalPesos,
         seguroPesos,
       ],
-    )
+    );
 
-    const idReserva = Number(reservaResult.lastInsertId)
+    const idReserva = Number(reservaResult.lastInsertId);
 
     // 3. Detalle de Estaciones
     if (Array.isArray(body.stationIds)) {
       for (const stationSlug of body.stationIds) {
         const s = await dbClient.queryOne(
-          'SELECT id_estacion, precio_por_persona FROM estacion WHERE codigo = ?',
+          "SELECT id_estacion, precio_por_persona FROM estacion WHERE codigo = ?",
           [stationSlug],
-        )
+        );
         if (s) {
-          const subtotal = Number(s.precio_por_persona) * (body.guests || 50)
+          const subtotal = Number(s.precio_por_persona) * (body.guests || 50);
           await dbClient.execute(
             `INSERT INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado)
              VALUES (?, ?, ?)`,
             [idReserva, s.id_estacion, subtotal],
-          )
+          );
         }
       }
     }
@@ -168,29 +170,34 @@ export class EventsService {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
            VALUES (?, ?, ?, ?)`,
-          [idReserva, 'Celiaquía', body.dietary.celiacos, 'Menú celíaco'],
-        )
+          [idReserva, "Celiaquía", body.dietary.celiacos, "Menú celíaco"],
+        );
       }
       if (body.dietary.vegetarianos > 0) {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
            VALUES (?, ?, ?, ?)`,
-          [idReserva, 'Vegetarianos', body.dietary.vegetarianos, 'Menú vegetariano'],
-        )
+          [
+            idReserva,
+            "Vegetarianos",
+            body.dietary.vegetarianos,
+            "Menú vegetariano",
+          ],
+        );
       }
       if (body.dietary.veganos > 0) {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
            VALUES (?, ?, ?, ?)`,
-          [idReserva, 'Veganos', body.dietary.veganos, 'Menú vegano'],
-        )
+          [idReserva, "Veganos", body.dietary.veganos, "Menú vegano"],
+        );
       }
       if (body.dietary.alergias) {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
            VALUES (?, ?, ?, ?)`,
-          [idReserva, 'Alergias', 1, body.dietary.alergias],
-        )
+          [idReserva, "Alergias", 1, body.dietary.alergias],
+        );
       }
     }
 
@@ -199,17 +206,27 @@ export class EventsService {
       await dbClient.execute(
         `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [idReserva, 'SEÑA', body.depositCents / 100, 1, 0, 'confirmado'],
-      )
+        [idReserva, "SEÑA", body.depositCents / 100, 1, 0, "confirmado"],
+      );
     }
 
-    const all = await this.fetchAllEvents()
-    return all.find((e: any) => e.id === `EV-${idReserva}`)
+    const all = await this.fetchAllEvents();
+    return all.find((e: any) => e.id === `EV-${idReserva}`);
   }
 
-  static async updateEvent(rawId: string, updates: { status?: string; paymentStatus?: string; kitchenNotes?: string }) {
-    const dbClient = getDatabase()
-    const idReserva = Number(rawId.replace('EV-', ''))
+  static async updateEvent(
+    rawId: string,
+    updates: {
+      status?: string;
+      paymentStatus?: string;
+      kitchenNotes?: string;
+      eventDate?: string;
+      startTime?: string;
+      cancelled?: number;
+    },
+  ) {
+    const dbClient = getDatabase();
+    const idReserva = Number(rawId.replace("EV-", ""));
 
     await dbClient.execute(
       `UPDATE reserva
@@ -217,9 +234,20 @@ export class EventsService {
          estado_evento = COALESCE(?, estado_evento),
          estado_pago = COALESCE(?, estado_pago),
          notas_cocina = COALESCE(?, notas_cocina),
-         fecha_actualizacion = CURRENT_TIMESTAMP
+         fecha_actualizacion = CURRENT_TIMESTAMP,
+         fecha_evento = COALESCE(?, fecha_evento),
+         hora_inicio = COALESCE(?, hora_inicio),
+         evento_cancelado = COALESCE(?, evento_cancelado)
        WHERE id_reserva = ?`,
-      [updates.status ?? null, updates.paymentStatus ?? null, updates.kitchenNotes ?? null, idReserva],
-    )
+      [
+        updates.status ?? null,
+        updates.paymentStatus ?? null,
+        updates.kitchenNotes ?? null,
+        updates.eventDate ?? null,
+        updates.startTime ?? null,
+        updates.cancelled ?? null,
+        idReserva,
+      ],
+    );
   }
 }

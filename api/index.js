@@ -549,7 +549,7 @@ var EventsService = class {
           guests: r.cantidad_invitados,
           stationIds: stations,
           status: r.estado_evento || "Presupuestado",
-          paymentStatus: r.estado_pago || "SE\xD1A_PENDIENTE",
+          paymentStatus: r.estado_pago || "-",
           totalCents: Math.round((Number(r.monto_total) || 0) * 100),
           depositCents: Math.round(depositPesos * 100),
           dietary: {
@@ -564,7 +564,8 @@ var EventsService = class {
           durationHours: Number(r.duracion_horas) || 3,
           locationAddress: r.direccion_evento,
           distanceKm: Number(r.distancia_km) || 10,
-          insuranceCents: Math.round((Number(r.monto_seguro) || 0) * 100)
+          insuranceCents: Math.round((Number(r.monto_seguro) || 0) * 100),
+          cancelled: r.evento_cancelado === 1
         };
       })
     );
@@ -572,9 +573,10 @@ var EventsService = class {
   }
   static async createEvent(body) {
     const dbClient = getDatabase();
-    let cliente = await dbClient.queryOne("SELECT id_cliente FROM cliente WHERE razon_social = ?", [
-      body.clientName
-    ]);
+    let cliente = await dbClient.queryOne(
+      "SELECT id_cliente FROM cliente WHERE razon_social = ?",
+      [body.clientName]
+    );
     let idCliente = cliente?.id_cliente;
     if (!idCliente) {
       const insertResult = await dbClient.execute(
@@ -609,7 +611,7 @@ var EventsService = class {
         body.distanceKm || 10,
         0,
         body.status || "Se\xF1ado / Confirmado",
-        body.paymentStatus || "SE\xD1A_ABONADA",
+        body.paymentStatus || "SALDO_PENDIENTE",
         body.kitchenNotes || "",
         totalPesos,
         seguroPesos
@@ -644,7 +646,12 @@ var EventsService = class {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
            VALUES (?, ?, ?, ?)`,
-          [idReserva, "Vegetarianos", body.dietary.vegetarianos, "Men\xFA vegetariano"]
+          [
+            idReserva,
+            "Vegetarianos",
+            body.dietary.vegetarianos,
+            "Men\xFA vegetariano"
+          ]
         );
       }
       if (body.dietary.veganos > 0) {
@@ -681,9 +688,20 @@ var EventsService = class {
          estado_evento = COALESCE(?, estado_evento),
          estado_pago = COALESCE(?, estado_pago),
          notas_cocina = COALESCE(?, notas_cocina),
-         fecha_actualizacion = CURRENT_TIMESTAMP
+         fecha_actualizacion = CURRENT_TIMESTAMP,
+         fecha_evento = COALESCE(?, fecha_evento),
+         hora_inicio = COALESCE(?, hora_inicio),
+         evento_cancelado = COALESCE(?, evento_cancelado)
        WHERE id_reserva = ?`,
-      [updates.status ?? null, updates.paymentStatus ?? null, updates.kitchenNotes ?? null, idReserva]
+      [
+        updates.status ?? null,
+        updates.paymentStatus ?? null,
+        updates.kitchenNotes ?? null,
+        updates.eventDate ?? null,
+        updates.startTime ?? null,
+        updates.cancelled ?? null,
+        idReserva
+      ]
     );
   }
 };
@@ -1620,20 +1638,31 @@ async function app(req, res) {
           });
           try {
             let handlerIdx = 0;
-            const next = async (err) => {
-              if (err) {
-                if (!isResponseSent) {
-                  customRes.status(500).json({ error: err.message || "Error interno del servidor" });
+            const pending = [];
+            const next = (err) => {
+              const p = (async () => {
+                if (err) {
+                  if (!isResponseSent) {
+                    customRes.status(500).json({ error: err.message || "Error interno del servidor" });
+                  }
+                  return;
                 }
-                return;
-              }
-              if (handlerIdx < route.handlers.length && !isResponseSent) {
-                const currentHandler = route.handlers[handlerIdx++];
-                await currentHandler(customReq, customRes, next);
-              }
+                if (handlerIdx < route.handlers.length && !isResponseSent) {
+                  const currentHandler = route.handlers[handlerIdx++];
+                  await currentHandler(customReq, customRes, next);
+                }
+              })();
+              pending.push(p);
+              return p;
             };
             await next();
-            if (isResponseSent) return;
+            while (pending.length > 0) {
+              await Promise.all(pending.splice(0, pending.length));
+            }
+            if (!isResponseSent) {
+              customRes.status(500).json({ error: "La ruta no gener\xF3 respuesta" });
+            }
+            return;
           } catch (handlerErr) {
             if (!isResponseSent) {
               customRes.status(500).json({ error: handlerErr.message || "Error en ejecuci\xF3n de ruta" });
