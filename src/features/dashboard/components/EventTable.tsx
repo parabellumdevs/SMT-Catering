@@ -47,6 +47,7 @@ function getContactName(event: EventRecord): string {
 }
 
 function sortEvents(events: EventRecord[], isNext: boolean): EventRecord[] {
+  console.log(events)
   return [...events].sort((a, b) => (
     isNext
     ? a.eventDate.localeCompare(b.eventDate)
@@ -217,6 +218,11 @@ export function EventTable({ events, isNext = false, onReschedule, onCancel }: E
                       {formatCurrency(event.totalCents)}
                     </span>
                     <PaymentStatusBadge status={event.paymentStatus} />
+                    {(event.paymentStatus === 'SALDO_PENDIENTE' ) && (
+                    <span className="text-xs text-gray-500 tnum block">
+                      Saldo: {formatCurrency(event.totalCents - event.depositCents)}
+                    </span>
+                  )}
                   </div>
                 </TableCell>
 
