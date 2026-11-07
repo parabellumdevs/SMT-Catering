@@ -167,7 +167,7 @@ export function StationSelector() {
               <div>
                 <h4 className="font-semibold text-ink">{extra.label}</h4>
                 <p className="mt-1 text-xs text-ink-secondary leading-relaxed">
-                  "Coctelería profesional, barra open bar y tragos de autor adaptados para tu evento corporativo."
+                  Coctelería profesional, barra open bar y tragos de autor adaptados para tu evento corporativo.
                 </p>
               </div>
 
