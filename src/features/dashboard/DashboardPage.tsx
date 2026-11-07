@@ -85,8 +85,8 @@ export function DashboardPage() {
           </div>
         ) : (
           <>
-            <EventTable events={visible} />
-            <EventCards events={visible} />
+<EventTable events={visible} isPast={currentTab === 'pasados'} />
+<EventCards events={visible} isPast={currentTab === 'pasados'} />
           </>
         )}
       </div>
