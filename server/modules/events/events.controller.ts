@@ -27,7 +27,7 @@ export class EventsController {
         res.status(400).json({ error: "ID de reserva requerido" });
         return;
       }
-      await EventsService.updateEvent(id, JSON.parse(req.body.body) || {});
+      await EventsService.updateEvent(id, req.body || {});
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

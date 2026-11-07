@@ -16,7 +16,7 @@ type EventTab = 'proximos' | 'pasados'
  * Módulo 2 — Dashboard Centralizado de Eventos y Costos.
  */
 export function DashboardPage() {
-  const { data: events = [], isLoading } = useEvents()
+  const { data: events = [], isLoading, refetch } = useEvents()
   const [currentTab, setCurrentTab] = useState<EventTab>('proximos')
 
   // Filtrado exclusivo por pestaña (Próximos vs Pasados)
@@ -28,29 +28,23 @@ export function DashboardPage() {
   }, [events, currentTab])
 
   const summary = useMemo(() => summarizeEvents(events), [events])
-const handleRescheduleEvent = async (eventId: string, newDate: string, newTime: string) => {
-  try {
-    const response = await api.patch(`/api/events/${eventId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        eventDate: newDate,    // Formato 'YYYY-MM-DD' que te devuelve el calendario
-        startTime: `${newTime}:00`, // Formato 'HH:mm:ss' o 'HH:mm' que espera tu backend
-      }),
-    })
 
-    if (!response) {
-      throw new Error('Error al reprogramar el evento')
+  const handleRescheduleEvent = async (
+    eventId: string,
+    newDate: string,
+    newTime: string,
+  ) => {
+    try {
+      await api.patch(`/api/events/${eventId}`, {
+        eventDate: newDate,
+        startTime: `${newTime}:00`,
+      })
+      await refetch()
+    } catch (error) {
+      console.error('Fallo en la reprogramación:', error)
     }
-
-    // Si salió bien, actualiza la lista de eventos o recarga los datos
-    //await refetchEvents()
-  } catch (error) {
-    console.error('Fallo en la reprogramación:', error)
   }
-}
+
   return (
     <>
       <PageHeader
@@ -98,18 +92,28 @@ const handleRescheduleEvent = async (eventId: string, newDate: string, newTime: 
         </div>
 
         {/* Contenedor principal de la tabla / tarjetas */}
-        {isLoading ? (
+        {isLoading && (
           <div className="rounded-2xl border border-gray-200/80 bg-white p-12 text-center">
-            <p className="text-sm text-ink-mute" role="status">Cargando eventos…</p>
+            <output className="text-sm text-ink-mute">Cargando eventos…</output>
           </div>
-        ) : visible.length === 0 ? (
+        )}
+        {!isLoading && visible.length === 0 && (
           <div className="rounded-2xl border border-gray-200/80 bg-white p-12 text-center">
             <p className="text-sm text-ink-mute">No hay eventos en esta sección.</p>
           </div>
-        ) : (
+        )}
+        {!isLoading && visible.length > 0 && (
           <>
-<EventTable events={visible} isPast={currentTab === 'pasados'} onReschedule={handleRescheduleEvent}/>
-<EventCards events={visible} isPast={currentTab === 'pasados'} />
+            <EventTable
+              events={visible}
+              isPast={currentTab === 'pasados'}
+              onReschedule={handleRescheduleEvent}
+            />
+            <EventCards
+              events={visible}
+              isPast={currentTab === 'pasados'}
+              onReschedule={handleRescheduleEvent}
+            />
           </>
         )}
       </div>

@@ -3,7 +3,11 @@ import { useEventStore } from '@/stores/eventStore'
 import type { EventRecord } from '@/types/domain'
 
 /** Hook centralizado para consumir eventos del backend con Zustand. */
-export function useEvents(): { data: EventRecord[]; isLoading: boolean } {
+export function useEvents(): {
+  data: EventRecord[]
+  isLoading: boolean
+  refetch: () => Promise<void>
+} {
   const events = useEventStore((s) => s.events)
   const isLoading = useEventStore((s) => s.isLoading)
   const isLoaded = useEventStore((s) => s.isLoaded)
@@ -11,11 +15,11 @@ export function useEvents(): { data: EventRecord[]; isLoading: boolean } {
 
   useEffect(() => {
     if (!isLoaded) {
-      fetchEvents()
+      void fetchEvents()
     }
   }, [isLoaded, fetchEvents])
 
-  return { data: events, isLoading }
+  return { data: events, isLoading, refetch: fetchEvents }
 }
 
 export interface EventsSummary {
