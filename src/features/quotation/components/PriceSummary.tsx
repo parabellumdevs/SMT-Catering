@@ -25,7 +25,7 @@ export function PriceSummaryPanel() {
   const selectedStations = ESTACIONES_GASTRONOMICAS.filter((s) => stationIds.includes(s.id))
 
   return (
-    <aside className="sticky top-6 hidden lg:block space-y-4" aria-label="Resumen de cotización">
+    <aside className="sticky top-16 hidden lg:block space-y-4" aria-label="Resumen de cotización">
       <div className="rounded-2xl border border-hairline bg-canvas shadow-lg overflow-hidden">
         
         {/* Cabecera Borravino con el Total */}
