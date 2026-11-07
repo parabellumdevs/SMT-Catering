@@ -225,7 +225,12 @@ export class EventsService {
   ) {
     const dbClient = getDatabase();
     const idReserva = Number(rawId.replace("EV-", ""));
-
+    console.log(
+      "Updating event",
+      idReserva,
+      updates.eventDate,
+      updates.startTime,
+    );
     await dbClient.execute(
       `UPDATE reserva
        SET

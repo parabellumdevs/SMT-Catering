@@ -8,6 +8,7 @@ import {
   summarizeEvents,
   useEvents,
 } from '@/features/dashboard/hooks/useEventsSummary'
+import { api } from '@/lib/api'
 
 type EventTab = 'proximos' | 'pasados'
 
@@ -27,7 +28,29 @@ export function DashboardPage() {
   }, [events, currentTab])
 
   const summary = useMemo(() => summarizeEvents(events), [events])
+const handleRescheduleEvent = async (eventId: string, newDate: string, newTime: string) => {
+  try {
+    const response = await api.patch(`/api/events/${eventId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        eventDate: newDate,    // Formato 'YYYY-MM-DD' que te devuelve el calendario
+        startTime: `${newTime}:00`, // Formato 'HH:mm:ss' o 'HH:mm' que espera tu backend
+      }),
+    })
 
+    if (!response) {
+      throw new Error('Error al reprogramar el evento')
+    }
+
+    // Si salió bien, actualiza la lista de eventos o recarga los datos
+    //await refetchEvents()
+  } catch (error) {
+    console.error('Fallo en la reprogramación:', error)
+  }
+}
   return (
     <>
       <PageHeader
@@ -85,7 +108,7 @@ export function DashboardPage() {
           </div>
         ) : (
           <>
-<EventTable events={visible} isPast={currentTab === 'pasados'} />
+<EventTable events={visible} isPast={currentTab === 'pasados'} onReschedule={handleRescheduleEvent}/>
 <EventCards events={visible} isPast={currentTab === 'pasados'} />
           </>
         )}
