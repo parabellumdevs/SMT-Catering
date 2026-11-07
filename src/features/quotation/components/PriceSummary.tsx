@@ -2,9 +2,10 @@ import { CalendarCheck, ShieldCheck, CreditCard, Landmark, FileText } from 'luci
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { DEPOSIT_PERCENT } from '@/lib/constants'
+import { DEPOSIT_PERCENT, ESTACIONES_GASTRONOMICAS } from '@/lib/constants'
 import { ConfirmEventModal } from '@/features/quotation/components/ConfirmEventModal'
 import { useQuotationCalculator } from '@/features/quotation/hooks/useQuotationCalculator'
+import { useTariffStore } from '@/stores/tariffStore'
 import { formatCurrency } from '@/lib/utils'
 import { useQuotationStore } from '@/stores/quotationStore'
 
@@ -15,12 +16,16 @@ export function PriceSummaryPanel() {
   const guests = useQuotationStore((s) => s.guests)
   const eventDate = useQuotationStore((s) => s.eventDate)
   const stationIds = useQuotationStore((s) => s.stationIds)
-  const { totalCents, depositCents, balanceCents } = useQuotationCalculator()
-
+  const tariffs = useTariffStore((s) => s.tariffs)
+  
+  // 💡 Obtenemos insuranceCents del calculador
+  const { totalCents, depositCents, balanceCents, insuranceCents } = useQuotationCalculator()
   const canConfirm = Boolean(eventDate) && stationIds.length > 0
 
+  const selectedStations = ESTACIONES_GASTRONOMICAS.filter((s) => stationIds.includes(s.id))
+
   return (
-    <aside className="sticky top-16 hidden lg:block space-y-4" aria-label="Resumen de cotización">
+    <aside className="sticky top-6 hidden lg:block space-y-4" aria-label="Resumen de cotización">
       <div className="rounded-2xl border border-hairline bg-canvas shadow-lg overflow-hidden">
         
         {/* Cabecera Borravino con el Total */}
@@ -34,18 +39,34 @@ export function PriceSummaryPanel() {
 
         {/* Cuerpo del Resumen */}
         <div className="p-6 space-y-6">
-          {/* Desglose de ítems */}
+          {/* Desglose dinámico de ítems */}
           <div className="space-y-3 text-sm border-b border-hairline pb-4">
-            <div className="flex justify-between text-ink-secondary">
-              <span>🍽️ Estación Entrada</span>
-              <span className="tnum font-medium">$ 135.000</span>
-            </div>
-            {stationIds.length > 1 && (
-              <div className="flex justify-between text-ink-secondary">
-                <span>🍝 Estación Pastas</span>
-                <span className="tnum font-medium">$ 180.000</span>
+            {selectedStations.length === 0 ? (
+              <p className="text-xs text-ink-mute italic text-center py-1">Seleccioná al menos una estación</p>
+            ) : (
+              selectedStations.map((station) => {
+                const priceCents =
+                  tariffs.find((t) => t.id === station.id)?.pricePerGuestCents ??
+                  station.precioPorComensalCentavos ?? 0
+                const stationSubtotal = priceCents * guests
+
+                return (
+                  <div key={station.id} className="flex justify-between items-center text-ink-secondary">
+                    <span className="truncate pr-2">{station.nombre}</span>
+                    <span className="tnum font-medium shrink-0">{formatCurrency(stationSubtotal)}</span>
+                  </div>
+                )
+              })
+            )}
+
+            {/* 💡 Muestra el seguro si aplica */}
+            {insuranceCents > 0 && (
+              <div className="flex justify-between items-center text-ink-secondary">
+                <span>🛡️ Seguro del evento</span>
+                <span className="tnum font-medium">{formatCurrency(insuranceCents)}</span>
               </div>
             )}
+
             <div className="flex justify-between border-t border-hairline pt-3 font-semibold text-ink">
               <span>Total Presupuestado</span>
               <span className="tnum">{formatCurrency(totalCents)}</span>
