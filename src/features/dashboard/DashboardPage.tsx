@@ -8,107 +8,88 @@ import {
   summarizeEvents,
   useEvents,
 } from '@/features/dashboard/hooks/useEventsSummary'
-import type { EventRecord } from '@/types/domain'
 
-type QuickFilter = 'semana' | '30d' | 'por-cobrar' | 'riesgo'
-
-const filters: { id: QuickFilter; label: string }[] = [
-  { id: 'semana', label: 'Semana actual' },
-  { id: '30d', label: 'Próximos 30 días' },
-  { id: 'por-cobrar', label: 'Por cobrar' },
-  { id: 'riesgo', label: 'En riesgo logístico' },
-]
+type EventTab = 'proximos' | 'pasados'
 
 /**
- * Aplica los filtros rápidos de supervisión operativa:
- * - 'semana': Eventos a ejecutarse dentro de los próximos 7 días corridos.
- * - '30d': Ventana de producción activa (próximos 30 días).
- * - 'por-cobrar': Eventos con saldo o seña pendiente (no saldados al 100%).
- * - 'riesgo': Eventos en los próximos 14 días que todavía tienen SEÑA_PENDIENTE (riesgo operativo).
- */
-function applyFilter(events: EventRecord[], filter: QuickFilter): EventRecord[] {
-  const pending = (e: EventRecord): boolean => e.paymentStatus !== 'TOTALMENTE_SALDADO'
-  switch (filter) {
-    case 'semana':
-      return events.filter((e) => {
-        const d = daysUntil(e.eventDate)
-        return d >= 0 && d <= 7
-      })
-    case '30d':
-      return events.filter((e) => {
-        const d = daysUntil(e.eventDate)
-        return d >= 0 && d <= 30
-      })
-    case 'por-cobrar':
-      return events.filter(pending)
-    case 'riesgo':
-      return events.filter(
-        (e) =>
-          e.paymentStatus === 'SEÑA_PENDIENTE' && daysUntil(e.eventDate) >= 0 && daysUntil(e.eventDate) <= 14,
-      )
-  }
-}
-
-/**
- * Módulo 2 — Dashboard Centralizado de Eventos y Costos (Admin / Socias).
- *
- * Responsabilidades:
- * - Visión financiera consolidada (KPIs de facturación, señas cobradas y saldos por cobrar).
- * - Segmentación rápida para control operativo y riesgo de acreditación de seña.
- * - Vista híbrida responsiva: tabla para tablet/desktop y tarjetas compactas para móvil.
+ * Módulo 2 — Dashboard Centralizado de Eventos y Costos.
  */
 export function DashboardPage() {
   const { data: events = [], isLoading } = useEvents()
-  const [active, setActive] = useState<QuickFilter | null>(null)
+  const [currentTab, setCurrentTab] = useState<EventTab>('proximos')
 
-  const visible = useMemo(
-    () => (active ? applyFilter(events, active) : events),
-    [events, active],
-  )
+  // Filtrado exclusivo por pestaña (Próximos vs Pasados)
+  const visible = useMemo(() => {
+    return events.filter((e) => {
+      const d = daysUntil(e.eventDate)
+      return currentTab === 'proximos' ? d >= 0 : d < 0
+    })
+  }, [events, currentTab])
+
   const summary = useMemo(() => summarizeEvents(events), [events])
 
   return (
     <>
       <PageHeader
-        title="Eventos y costos"
-        description="Supervisión financiera, calendario y estado de cobro en un solo lugar."
+        title="Panel de Administración"
+        description="Bienvenida, Ana. Aquí tienes el resumen de hoy."
       />
 
       <KpiGrid summary={summary} />
 
-      <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Filtros rápidos">
-        {filters.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            aria-pressed={active === id}
-            onClick={() => setActive((cur) => (cur === id ? null : id))}
-            className={cn(
-              'rounded-pill border px-4 py-2 text-sm transition-colors',
-              active === id
-                ? 'border-primary bg-primary text-white'
-                : 'border-hairline bg-canvas text-ink-secondary hover:bg-canvas-soft',
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* Sección de Gestión de Eventos con el switch a la derecha */}
+      <div className="mt-8 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 tracking-tight">Gestión de Eventos</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Agenda completa y control de estado de pagos</p>
+          </div>
 
-      {isLoading ? (
-        <p className="py-10 text-center text-sm text-ink-mute" role="status">
-          Cargando eventos…
-        </p>
-      ) : visible.length === 0 ? (
-        <p className="py-10 text-center text-sm text-ink-mute">
-          No hay eventos para este filtro.
-        </p>
-      ) : (
-        <>
-          <EventTable events={visible} />
-          <EventCards events={visible} />
-        </>
-      )}
+          {/* Switch de Pestañas (Próximos / Pasados) */}
+          <div className="flex items-center bg-gray-100/80 p-1 rounded-xl border border-gray-200/60">
+            <button
+              type="button"
+              onClick={() => setCurrentTab('proximos')}
+              className={cn(
+                'px-4 py-1.5 text-xs font-semibold rounded-lg transition-all',
+                currentTab === 'proximos'
+                  ? 'bg-brand text-white shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900',
+              )}
+            >
+              Próximos Eventos
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentTab('pasados')}
+              className={cn(
+                'px-4 py-1.5 text-xs font-semibold rounded-lg transition-all',
+                currentTab === 'pasados'
+                  ? 'bg-brand text-white shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900',
+              )}
+            >
+              Eventos Pasados
+            </button>
+          </div>
+        </div>
+
+        {/* Contenedor principal de la tabla / tarjetas */}
+        {isLoading ? (
+          <div className="rounded-2xl border border-gray-200/80 bg-white p-12 text-center">
+            <p className="text-sm text-ink-mute" role="status">Cargando eventos…</p>
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="rounded-2xl border border-gray-200/80 bg-white p-12 text-center">
+            <p className="text-sm text-ink-mute">No hay eventos en esta sección.</p>
+          </div>
+        ) : (
+          <>
+            <EventTable events={visible} />
+            <EventCards events={visible} />
+          </>
+        )}
+      </div>
     </>
   )
 }
