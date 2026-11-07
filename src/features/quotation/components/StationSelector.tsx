@@ -6,9 +6,24 @@ import { ESTACIONES_GASTRONOMICAS } from '@/lib/constants'
 import { useTariffStore } from '@/stores/tariffStore'
 import { useQuotationStore } from '@/stores/quotationStore'
 
-/**
- * Selector interactivo de estaciones culinarias y adicionales (Módulo 1: Cotizador).
- */
+// 1. Importás tus imágenes estáticamente para que Vite las procese
+import entradasImg from '@/assets/islas/entradas.jpg'
+import pastasImg from '@/assets/islas/pastas.jpg'
+import parrillaImg from '@/assets/islas/parrilla.jpg'
+import asiaticaImg from '@/assets/islas/asiatica.jpg'
+import dulceImg from '@/assets/islas/dulce.jpg'
+import tragosImg from '@/assets/islas/tragos.jpg'
+
+// 2. Armás un objeto mapa que relacione el ID con la variable importada
+const stationImages: Record<string, string> = {
+  entradas: entradasImg,
+  pastas: pastasImg,
+  parrilla: parrillaImg,
+  asiatica: asiaticaImg,
+  dulce: dulceImg,
+  tragos: tragosImg,
+}
+
 export function StationSelector() {
   const stationIds = useQuotationStore((s) => s.stationIds)
   const extraIds = useQuotationStore((s) => s.extraIds)
@@ -71,9 +86,9 @@ export function StationSelector() {
             >
               {/* Imagen y Badge de Precio */}
               <div className="relative h-32 w-full sm:w-48 shrink-0 overflow-hidden rounded-lg bg-canvas-soft">
-                {station.nombre ? (
+                {stationImages[station.id] ? (
                   <img
-                    src={`${'src/assets/islas/'+station.id}.jpg`}
+                    src={stationImages[station.id]} // 👈 Usamos el mapa estático
                     alt={station.nombre}
                     className="h-full w-full object-cover"
                   />
@@ -137,72 +152,71 @@ export function StationSelector() {
 
       {/* Sección de Adicionales */}
       <div className="pt-4 border-t border-hairline">
-                  <h2 className="text-lg font-semibold text-ink mb-4">Adicionales</h2>
+        <h2 className="text-lg font-semibold text-ink mb-4">Adicionales</h2>
 
-        <div className="flex flex-wrap gap-2 ">
+        <div className="flex flex-wrap gap-2">
           {extras.map((extra) => {
             const selected = extraIds.includes(extra.id)
             return (
-          <div
-            key={extra.id}
-            className={`flex flex-col sm:flex-row rounded-lg border p-4 gap-4 transition-all bg-canvas w-full ${
-              selected ? 'border-[#581c25] ring-1 ring-[#581c25]/20' : 'border-hairline hover:border-hairline-input'
-            }`}
-          >
-            {/* Imagen de la Barra de Tragos */}
-            <div className="relative h-32 w-full sm:w-48 shrink-0 overflow-hidden rounded-lg bg-canvas-soft">
-              <img
-              src='src/assets/islas/tragos.jpg'
- // 👈 Pone aquí la URL de tu imagen o usa extra.imagen si viene del backend
-                alt={extra.label}
-                className="h-full w-full object-cover"
-              />
-              <div className="absolute top-2 left-2 rounded-md bg-[#581c25] px-2.5 py-1 text-xs font-semibold text-white shadow-md tnum">
-                {formatCurrency(extra.pricePerGuestCents)}/pp
-              </div>
-            </div>
+              <div
+                key={extra.id}
+                className={`flex flex-col sm:flex-row rounded-lg border p-4 gap-4 transition-all bg-canvas w-full ${
+                  selected ? 'border-[#581c25] ring-1 ring-[#581c25]/20' : 'border-hairline hover:border-hairline-input'
+                }`}
+              >
+                {/* Imagen de la Barra de Tragos */}
+                <div className="relative h-32 w-full sm:w-48 shrink-0 overflow-hidden rounded-lg bg-canvas-soft">
+                  <img
+                    src={stationImages[extra.id] || tragosImg} // 👈 Usamos el mapa o fallback
+                    alt={extra.label}
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="absolute top-2 left-2 rounded-md bg-[#581c25] px-2.5 py-1 text-xs font-semibold text-white shadow-md tnum">
+                    {formatCurrency(extra.pricePerGuestCents)}/pp
+                  </div>
+                </div>
 
-            {/* Información */}
-            <div className="flex flex-1 flex-col justify-between">
-              <div>
-                <h4 className="font-semibold text-ink">{extra.label}</h4>
-                <p className="mt-1 text-xs text-ink-secondary leading-relaxed">
-                  Coctelería profesional, barra open bar y tragos de autor adaptados para tu evento corporativo.
-                </p>
-              </div>
+                {/* Información */}
+                <div className="flex flex-1 flex-col justify-between">
+                  <div>
+                    <h4 className="font-semibold text-ink">{extra.label}</h4>
+                    <p className="mt-1 text-xs text-ink-secondary leading-relaxed">
+                      Coctelería profesional, barra open bar y tragos de autor adaptados para tu evento corporativo.
+                    </p>
+                  </div>
 
-              {/* Botón de selección y Subtotal */}
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-hairline/60">
-                <button
-                  type="button"
-                  onClick={() => toggleExtra(extra.id)}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-colors ${
-                    selected
-                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                      : 'border border-hairline bg-canvas text-ink hover:bg-canvas-soft'
-                  }`}
-                >
-                  {selected ? (
-                    <>
-                      <Check className="h-3.5 w-3.5" /> Seleccionada
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="h-3.5 w-3.5 text-[#581c25]" /> Agregar Servicio
-                    </>
-                  )}
-                </button>
+                  {/* Botón de selección y Subtotal */}
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-hairline/60">
+                    <button
+                      type="button"
+                      onClick={() => toggleExtra(extra.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-colors ${
+                        selected
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                          : 'border border-hairline bg-canvas text-ink hover:bg-canvas-soft'
+                      }`}
+                    >
+                      {selected ? (
+                        <>
+                          <Check className="h-3.5 w-3.5" /> Seleccionada
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-3.5 w-3.5 text-[#581c25]" /> Agregar Servicio
+                        </>
+                      )}
+                    </button>
 
-                <div className="text-right">
-                  <span className="text-[11px] uppercase tracking-wider text-ink-mute block">Total adicional</span>
-                  <span className="text-sm font-semibold text-ink tnum">
-                    {formatCurrency(extra.pricePerGuestCents * guests)}
-                  </span>
+                    <div className="text-right">
+                      <span className="text-[11px] uppercase tracking-wider text-ink-mute block">Total adicional</span>
+                      <span className="text-sm font-semibold text-ink tnum">
+                        {formatCurrency(extra.pricePerGuestCents * guests)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        )
+            )
           })}
         </div>
       </div>
