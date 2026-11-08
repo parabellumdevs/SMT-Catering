@@ -88,10 +88,10 @@ function ActionButtons({ className }: { className?: string }) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const eventDate = useQuotationStore((s) => s.eventDate)
   const stationIds = useQuotationStore((s) => s.stationIds)
+  const locationPoint = useQuotationStore((s) => s.locationPoint)
   const { share, copied } = useShareSummary()
 
-  const canConfirm = Boolean(eventDate) && stationIds.length > 0
-
+  const canConfirm = Boolean(eventDate) && stationIds.length > 0 && locationPoint !== null
   return (
     <div className={cn('space-y-2', className)}>
       <Button
@@ -108,6 +108,12 @@ function ActionButtons({ className }: { className?: string }) {
           Elegí una fecha en el calendario para reservar
         </p>
       )}
+      {locationPoint === null && (
+        <p className="text-[11px] text-center text-ink-mute">
+          Elegí una dirección dentro de la zona de cobertura
+        </p>
+      )}
+
       <Button variant="secondary" className="w-full" onClick={share}>
         {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
         {copied ? 'Resumen copiado' : 'Compartir resumen'}

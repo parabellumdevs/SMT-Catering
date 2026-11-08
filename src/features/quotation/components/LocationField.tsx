@@ -11,7 +11,12 @@ const MAX_DISTANCE_KM = 20
 const MIN_CHARS = 4
 const DEBOUNCE_MS = 500
 
-type SearchStatus = 'idle' | 'loading' | 'done' | 'error'
+interface SearchResult {
+  /** Texto con el que se hizo la búsqueda. */
+  query: string
+  items: AddressSuggestion[]
+  error: boolean
+}
 
 /**
  * Ubicación del evento con sugerencias de direcciones (Photon / OpenStreetMap).
@@ -25,30 +30,25 @@ export function LocationField() {
   const setAddress = useQuotationStore((s) => s.setLocationAddress)
   const selectLocation = useQuotationStore((s) => s.selectLocation)
 
-  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([])
-  const [status, setStatus] = useState<SearchStatus>('idle')
+  const [result, setResult] = useState<SearchResult | null>(null)
   const [outOfRange, setOutOfRange] = useState(false)
 
+  const text = address.trim()
+  const canSearch = point === null && text.length >= MIN_CHARS
+  const current = canSearch && result !== null && result.query === text ? result : null
+  const isLoading = canSearch && current === null
+  const suggestions = current && !current.error ? current.items : []
+
   useEffect(() => {
-    const text = address.trim()
-    if (point || text.length < MIN_CHARS) {
-      setSuggestions([])
-      setStatus('idle')
-      return
-    }
+    if (!canSearch) return undefined
 
     const controller = new AbortController()
-    setStatus('loading')
     const timer = window.setTimeout(() => {
       searchAddresses(text, controller.signal)
-        .then((results) => {
-          setSuggestions(results)
-          setStatus('done')
-        })
+        .then((items) => setResult({ query: text, items, error: false }))
         .catch((err: unknown) => {
           if (err instanceof DOMException && err.name === 'AbortError') return
-          setSuggestions([])
-          setStatus('error')
+          setResult({ query: text, items: [], error: true })
         })
     }, DEBOUNCE_MS)
 
@@ -56,7 +56,7 @@ export function LocationField() {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [address, point])
+  }, [canSearch, text])
 
   const handleChange = (value: string) => {
     setOutOfRange(false)
@@ -111,13 +111,13 @@ export function LocationField() {
         />
       </div>
 
-      {status === 'loading' && <p className="mt-2 text-xs text-ink-mute">Buscando…</p>}
-      {status === 'error' && (
+      {isLoading && <p className="mt-2 text-xs text-ink-mute">Buscando…</p>}
+      {current?.error && (
         <p className="mt-2 text-xs text-state-danger">
           No pudimos buscar la dirección. Probá de nuevo en un momento.
         </p>
       )}
-      {status === 'done' && suggestions.length === 0 && (
+      {current && !current.error && suggestions.length === 0 && (
         <p className="mt-2 text-xs text-ink-mute">Sin resultados. Probá con otra dirección.</p>
       )}
 

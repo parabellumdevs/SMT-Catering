@@ -25,6 +25,9 @@ export function ConfirmEventModal({ open, onOpenChange }: Props) {
   const eventDate = useQuotationStore((s) => s.eventDate)
   const stationIds = useQuotationStore((s) => s.stationIds)
   const dietary = useQuotationStore((s) => s.dietary)
+  const locationAddress = useQuotationStore((s) => s.locationAddress)
+  const locationPoint = useQuotationStore((s) => s.locationPoint)
+  const locationDistanceKm = useQuotationStore((s) => s.locationDistanceKm)
   const resetQuotation = useQuotationStore((s) => s.reset)
   const { totalCents, depositCents, insuranceCents } = useQuotationCalculator()
   const addEvent = useEventStore((s) => s.addEvent)
@@ -39,10 +42,19 @@ export function ConfirmEventModal({ open, onOpenChange }: Props) {
     eventDate &&
       isBefore(parseISO(eventDate), addDays(today, MIN_BOOKING_DAYS_ADVANCE)),
   )
+  const hasValidLocation = locationPoint !== null && locationDistanceKm !== null
 
   const handleConfirm = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!clientName.trim() || !eventDate || isTooSoon) return
+    if (
+      !clientName.trim() ||
+      !eventDate ||
+      isTooSoon ||
+      locationPoint === null ||
+      locationDistanceKm === null
+    ) {
+      return
+    }
     const newRecord = addEvent({
       clientName: clientName.trim(),
       eventDate,
@@ -55,6 +67,8 @@ export function ConfirmEventModal({ open, onOpenChange }: Props) {
       insuranceCents,
       dietary,
       kitchenNotes: kitchenNotes.trim(),
+      locationAddress,
+      distanceKm: Math.round(locationDistanceKm * 100) / 100,
     })
     setCreatedEventId(newRecord.id)
     resetQuotation()
@@ -93,11 +107,13 @@ export function ConfirmEventModal({ open, onOpenChange }: Props) {
               </div>
               <div className="my-3 space-y-1.5 rounded-lg bg-canvas-soft p-3 text-xs text-ink-secondary">
                 <div className="flex justify-between"><span>Fecha:</span> <strong className="text-ink">{eventDate ?? 'Sin fecha'}</strong></div>
+                <div className="flex justify-between gap-4"><span>Dirección:</span> <strong className="text-right text-ink">{hasValidLocation ? locationAddress : 'Sin dirección'}</strong></div>
                 <div className="flex justify-between"><span>Comensales:</span> <strong className="text-ink tnum">{guests} pax</strong></div>
                 <div className="flex justify-between"><span>Total:</span> <strong className="text-ink tnum">{formatCurrency(totalCents)}</strong></div>
                 <div className="flex justify-between border-t border-hairline pt-1 text-primary-deep"><span>Seña ({DEPOSIT_PERCENT}%):</span> <strong className="tnum">{formatCurrency(depositCents)}</strong></div>
               </div>
               {isTooSoon && <p className="mb-2 text-xs text-state-danger">Antelación mínima obligatoria: {MIN_BOOKING_DAYS_ADVANCE} días.</p>}
+              {!hasValidLocation && <p className="mb-2 text-xs text-state-danger">Elegí una dirección dentro de la zona de cobertura para confirmar.</p>}
               <div className="space-y-3">
                 <div>
                   <Label htmlFor="clientName" className="mb-1 block text-xs">Cliente / Empresa *</Label>
@@ -117,7 +133,7 @@ export function ConfirmEventModal({ open, onOpenChange }: Props) {
               </div>
               <div className="mt-5 flex justify-end gap-2">
                 <Button type="button" variant="ghost" onClick={handleClose}>Cancelar</Button>
-                <Button type="submit" variant="primary" disabled={!clientName.trim() || !eventDate || isTooSoon}>Confirmar y agendar</Button>
+                <Button type="submit" variant="primary" disabled={!clientName.trim() || !eventDate || isTooSoon || !hasValidLocation}>Confirmar y agendar</Button>
               </div>
             </form>
           )}
