@@ -69,6 +69,11 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - [ ] Ocultar flechas por defecto (`spinners` / `steppers`) en todos los inputs de tipo numérico (`input[type=number]`).
 - [x] **Navegación Dinámica por Rol**
   - [x] Configurar [`AppShell.tsx`](../src/components/layout/AppShell.tsx) y [`nav-items.ts`](../src/components/layout/nav-items.ts) para renderizar únicamente las secciones habilitadas según el rol del usuario conectado.
+- [x] **Manejador Global y Modular de Errores (Error Boundary)**
+  - [x] Incorporar librería `react-error-boundary` y crear componente [`src/components/ui/ErrorBoundary.tsx`](../src/components/ui/ErrorBoundary.tsx).
+  - [x] Diseñar vista de contingencia (`ErrorFallback`) con identidad de marca Bordó (`bg-brand`), mensaje claro para el usuario, detalle técnico colapsable y acciones rápidas ("Reintentar", "Recargar página" e "Ir al inicio").
+  - [x] Envolver la raíz de la aplicación en [`src/App.tsx`](../src/App.tsx) para prevenir pantallas en blanco fatales.
+  - [x] Envolver el área de contenido (`<Outlet />`) en [`src/components/layout/AppShell.tsx`](../src/components/layout/AppShell.tsx) con `resetKeys={[location.pathname]}` para aislar fallos de renderizado por módulo manteniendo la barra lateral y navegación intactas.
 
 ---
 
