@@ -2,11 +2,13 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { addDays, addHours, isBefore, parseISO, startOfDay } from 'date-fns'
 import { AlertCircle, CalendarCheck, Check, CheckCircle2, Copy, FileText, Upload, X } from 'lucide-react'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useQuotationCalculator } from '@/features/quotation/hooks/useQuotationCalculator'
+import { formatCurrency } from '@/lib/utils'
 import { useEventStore } from '@/stores/eventStore'
 import { useQuotationStore } from '@/stores/quotationStore'
 import { BANK_DETAILS, DEPOSIT_HOLD_HOURS, DEPOSIT_PERCENT, MIN_BOOKING_DAYS_ADVANCE } from '@/lib/constants'
@@ -43,7 +45,7 @@ export function ConfirmEventModal({ open, onOpenChange, paymentMethodLabel }: Pr
   const { totalCents, depositCents, insuranceCents } = useQuotationCalculator()
   const addEvent = useEventStore((s) => s.addEvent)
 
-  const clientField = useClientCompanyField(open)
+  const [clientName, setClientName] = useState('')
   const [kitchenNotes, setKitchenNotes] = useState('')
   const [createdEventId, setCreatedEventId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -58,8 +60,6 @@ export function ConfirmEventModal({ open, onOpenChange, paymentMethodLabel }: Pr
   const isTooSoon = Boolean(
     eventDate && isBefore(parseISO(eventDate), addDays(today, MIN_BOOKING_DAYS_ADVANCE)),
   )
-  const initialCents = initialPayment === 'full' ? totalCents : depositCents
-  const paymentStatus: PaymentStatus = initialPayment === 'full' ? 'SALDADO' : 'SALDO_PENDIENTE'
 
   /** Solo el alias se copia: el CBU se lee/transcribe, no tiene botón. */
   const handleCopyAlias = async () => {
@@ -110,7 +110,7 @@ export function ConfirmEventModal({ open, onOpenChange, paymentMethodLabel }: Pr
 
       // El cliente nunca marca la seña como abonada: con transferencia queda pendiente
       // hasta que el administrador la confirme.
-      const paymentStatus = (isTransfer ? 'SEÑA_PENDIENTE' : 'SALDO_PENDIENTE') as PaymentStatus
+      const paymentStatus: PaymentStatus = isTransfer ? 'SEÑA PENDIENTE' : 'SALDO PENDIENTE'
 
       const newRecord = addEvent({
         clientName: clientName.trim(),
@@ -141,7 +141,7 @@ export function ConfirmEventModal({ open, onOpenChange, paymentMethodLabel }: Pr
 
   const handleClose = () => {
     setCreatedEventId(null)
-    clientField.reset()
+    setClientName('')
     setKitchenNotes('')
     setReceiptFile(null)
     setReceiptError(null)
