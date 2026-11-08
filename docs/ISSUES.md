@@ -69,6 +69,11 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - [ ] Ocultar flechas por defecto (`spinners` / `steppers`) en todos los inputs de tipo numérico (`input[type=number]`).
 - [x] **Navegación Dinámica por Rol**
   - [x] Configurar [`AppShell.tsx`](../src/components/layout/AppShell.tsx) y [`nav-items.ts`](../src/components/layout/nav-items.ts) para renderizar únicamente las secciones habilitadas según el rol del usuario conectado.
+- [x] **Manejador Global y Modular de Errores (Error Boundary)**
+  - [x] Incorporar librería `react-error-boundary` y crear componente [`src/components/ui/ErrorBoundary.tsx`](../src/components/ui/ErrorBoundary.tsx).
+  - [x] Diseñar vista de contingencia (`ErrorFallback`) con identidad de marca Bordó (`bg-brand`), mensaje claro para el usuario, detalle técnico colapsable y acciones rápidas ("Reintentar", "Recargar página" e "Ir al inicio").
+  - [x] Envolver la raíz de la aplicación en [`src/App.tsx`](../src/App.tsx) para prevenir pantallas en blanco fatales.
+  - [x] Envolver el área de contenido (`<Outlet />`) en [`src/components/layout/AppShell.tsx`](../src/components/layout/AppShell.tsx) con `resetKeys={[location.pathname]}` para aislar fallos de renderizado por módulo manteniendo la barra lateral y navegación intactas.
 
 ---
 
@@ -131,10 +136,10 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
 - [ ] **Resumen Financiero & Checkout**
   - [x] Incorporar tarifa fija de **Seguro contra todo riesgo (`$80.000`)** en base de datos y cálculo de cotización.
   - [x] Ajustar seña al **50%** en cálculo de cotización (congela el precio y aprueba automáticamente para producción).
-  - [ ] Permitir al cliente elegir el monto inicial a abonar en frontend: **50% (Seña)** o **100% (Total)**.
-  - [ ] Renombrar el botón `"Confirmar evento"` por **`"Pagar"`** en [`PriceSummary.tsx`](../src/features/quotation/components/PriceSummary.tsx).
-  - [ ] Quitar el botón `"Compartir resumen"` en [`PriceSummary.tsx`](../src/features/quotation/components/PriceSummary.tsx).
-  - [ ] Implementar modal informativo previo a la redirección a la pasarela de pagos en [`ConfirmEventModal.tsx`](../src/features/quotation/components/ConfirmEventModal.tsx), tomando automáticamente los datos del cliente B2B autenticado.
+  - [X] Permitir al cliente elegir el monto inicial a abonar en frontend: **50% (Seña)** o **100% (Total)**.
+  - [X] Renombrar el botón `"Confirmar evento"` por **`"Pagar"`** en [`PriceSummary.tsx`](../src/features/quotation/components/PriceSummary.tsx).
+  - [X] Quitar el botón `"Compartir resumen"` en [`PriceSummary.tsx`](../src/features/quotation/components/PriceSummary.tsx).
+  - [x] Implementar modal informativo previo a la redirección a la pasarela de pagos en [`ConfirmEventModal.tsx`](../src/features/quotation/components/ConfirmEventModal.tsx), tomando automáticamente los datos del cliente B2B autenticado.
 
 ---
 
@@ -146,11 +151,11 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - [ ] Registrar la ruta `/mis-eventos` en [`src/App.tsx`](../src/App.tsx), agregar enlace en [`nav-items.ts`](../src/components/layout/nav-items.ts) para el rol `cliente` y conectar el endpoint real `GET /api/events/my-events` contra PostgreSQL.
   - [ ] Mostrar tarjetas/grilla con: fecha y horario contratado, dirección, comensales, estaciones seleccionadas y estado de cobro.
 - [ ] **Acciones Disponibles por Evento**
-  - [ ] **Ver Detalle:** modal o vista con el desglose completo de la cotización y servicios.
+  - [X] **Ver Detalle:** modal o vista con el desglose completo de la cotización y servicios.
   - [ ] **Pagar Saldo Restante (50%):** botón para abonar el saldo pendiente (vencimiento: hasta **24 horas antes** del evento) con redirección a pasarela de pagos y actualización a `SALDADO`.
-  - [ ] **Comprobantes (PDF):** descarga o previsualización del comprobante comercial / factura de los pagos efectuados.
+  - [X] **Comprobantes (PDF):** descarga o previsualización del comprobante comercial / factura de los pagos efectuados.
   - [ ] **Reprogramación:** solicitar cambio de fecha sin recargo, validando únicamente que la nueva fecha cumpla con las reglas de disponibilidad y concurrencia ($\le 60$ pax).
-  - [ ] **Cancelación:** botón para solicitar cancelación del evento aplicando la política acordada:
+  - [X] **Cancelación:** botón para solicitar cancelación del evento aplicando la política acordada:
     - Hasta **7 días (1 semana) antes** del evento: **reintegro del 100% de la seña**.
     - Menos de **7 días antes** del evento: **sin reintegro de la seña**.
 

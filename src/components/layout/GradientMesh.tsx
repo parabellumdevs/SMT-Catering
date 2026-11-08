@@ -1,5 +1,5 @@
 /**
- * Gradient Mesh Backdrop (DESIGN.md §Overview & §Signature Components).
+ * Gradient Mesh Backdrop.
  *
  * Banda horizontal atmosférica en el tercio superior compuesta por parches orgánicos
  * difuminados: pastel cream (#f5e9d4), lemon/sherbet (#9b6829), lavender (#b9b9f9),

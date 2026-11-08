@@ -20,6 +20,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 
 import { AppShell } from '@/components/layout/AppShell'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { LoginPage } from '@/features/login/LoginPage'
 import { QuotationPage } from '@/features/quotation/QuotationPage'
@@ -68,36 +69,38 @@ export default function App() {
     checkSession()
   }, [checkSession])
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          {/* Ruta pública — Login (sin AppShell, pantalla completa) */}
-          <Route path="login" element={<LoginPage />} />
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Routes>
+            {/* Ruta pública — Login (sin AppShell, pantalla completa) */}
+            <Route path="login" element={<LoginPage />} />
 
-          {/* Rutas protegidas — requieren autenticación */}
-          <Route element={<ProtectedRoute />}>
-            <Route element={<AppShell />}>
-              <Route index element={<QuotationPage />} />
-              <Route path="dashboard" element={<DashboardPage />} />
-              <Route path="comandas" element={<ComandaListPage />} />
-              <Route path="comandas/:eventId" element={<ComandaDetailPage />} />
-              <Route path="tarifas" element={<PricingPage />} />
-              <Route
-                path="usuarios"
-                element={
-                  <AdminRoute>
-                    <UsersPage />
-                  </AdminRoute>
-                }
-              />
-              <Route path="perfil" element={<ProfilePage />} />
+            {/* Rutas protegidas — requieren autenticación */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppShell />}>
+                <Route index element={<QuotationPage />} />
+                <Route path="dashboard" element={<DashboardPage />} />
+                <Route path="comandas" element={<ComandaListPage />} />
+                <Route path="comandas/:eventId" element={<ComandaDetailPage />} />
+                <Route path="tarifas" element={<PricingPage />} />
+                <Route
+                  path="usuarios"
+                  element={
+                    <AdminRoute>
+                      <UsersPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route path="perfil" element={<ProfilePage />} />
+              </Route>
             </Route>
-          </Route>
 
-          {/* Fallback — redirige a inicio */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </QueryClientProvider>
+            {/* Fallback — redirige a inicio */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }

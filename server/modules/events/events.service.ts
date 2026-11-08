@@ -56,7 +56,7 @@ export class EventsService {
 
         let depositPesos = 0;
         for (const p of pagos) {
-          if (p.tipo_pago === "SEÑA" || p.tipo_pago === "TOTAL") {
+          if (p.tipo_pago === "SEÑA" || p.tipo_pago === "TOTAL" || p.tipo_pago === "SALDO") {
             depositPesos += Number(p.monto) || 0;
           }
         }
@@ -249,5 +249,32 @@ export class EventsService {
         idReserva,
       ],
     );
+
+    // Si se salda el evento, registrar el pago del saldo restante en la tabla pago
+    if (updates.paymentStatus === "SALDADO") {
+      const res = await dbClient.queryOne<{ monto_total: number | string }>(
+        `SELECT monto_total FROM reserva WHERE id_reserva = ?`,
+        [idReserva],
+      );
+      if (res) {
+        const montoTotal = Number(res.monto_total) || 0;
+        const pagosRows = await dbClient.query<{ monto: number | string }>(
+          `SELECT monto FROM pago WHERE id_reserva = ? AND estado = 'confirmado'`,
+          [idReserva],
+        );
+        let yaAbonado = 0;
+        for (const p of pagosRows) {
+          yaAbonado += Number(p.monto) || 0;
+        }
+        const saldoRemanente = Math.max(0, montoTotal - yaAbonado);
+        if (saldoRemanente > 0) {
+          await dbClient.execute(
+            `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [idReserva, "SALDO", saldoRemanente, 1, 1, "confirmado"],
+          );
+        }
+      }
+    }
   }
 }
