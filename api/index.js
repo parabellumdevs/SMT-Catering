@@ -56,7 +56,12 @@ function createRouter() {
 
 // server/db/client.ts
 import "dotenv/config";
+import dns from "node:dns";
 import pg from "pg";
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch {
+}
 var { Pool, types } = pg;
 types.setTypeParser(1082, (val) => val);
 types.setTypeParser(1700, (val) => val === null ? null : parseFloat(val));
@@ -72,6 +77,67 @@ var pool = new Pool({
     rejectUnauthorized: false
   }
 });
+var isNeon = Boolean(connectionString && connectionString.includes("neon.tech"));
+var useHttpTransport = false;
+if (isNeon && process.env.VERCEL !== "1") {
+  import("node:net").then(({ default: net }) => {
+    try {
+      const parsed = new URL(connectionString);
+      const socket = net.connect(5432, parsed.hostname, () => {
+        socket.destroy();
+      });
+      socket.setTimeout(1200, () => {
+        useHttpTransport = true;
+        socket.destroy();
+      });
+      socket.on("error", () => {
+        useHttpTransport = true;
+      });
+    } catch {
+      useHttpTransport = true;
+    }
+  }).catch(() => {
+  });
+}
+async function queryNeonHttp(pgSql, params = []) {
+  const parsed = new URL(connectionString);
+  const endpoint = `https://${parsed.hostname}/sql`;
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Neon-Connection-String": connectionString
+    },
+    body: JSON.stringify({ query: pgSql, params })
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Neon HTTP API Error (${res.status}): ${errText}`);
+  }
+  const data = await res.json();
+  return {
+    rows: data.rows || [],
+    rowCount: data.rowCount ?? data.rows?.length ?? 0
+  };
+}
+async function executeRawQuery(pgSql, params = []) {
+  if (useHttpTransport && isNeon && connectionString) {
+    return queryNeonHttp(pgSql, params);
+  }
+  try {
+    const res = await pool.query(pgSql, params);
+    return {
+      rows: res.rows,
+      rowCount: res.rowCount ?? res.rows.length
+    };
+  } catch (err) {
+    if (isNeon && connectionString && (err.code === "ETIMEDOUT" || err.message?.includes("ETIMEDOUT") || err.message?.includes("timeout") || err.message?.includes("connect"))) {
+      useHttpTransport = true;
+      return queryNeonHttp(pgSql, params);
+    }
+    throw err;
+  }
+}
 function convertPlaceholders(sql) {
   let paramIndex = 1;
   return sql.replace(/\?/g, () => `$${paramIndex++}`);
@@ -82,7 +148,7 @@ var db = {
    */
   async query(sql, params = []) {
     const pgSql = convertPlaceholders(sql);
-    const res = await pool.query(pgSql, params);
+    const res = await executeRawQuery(pgSql, params);
     return res.rows;
   },
   /**
@@ -102,7 +168,7 @@ var db = {
     if (isInsert && !/RETURNING/i.test(pgSql)) {
       pgSql += " RETURNING *";
     }
-    const res = await pool.query(pgSql, params);
+    const res = await executeRawQuery(pgSql, params);
     const firstRow = res.rows[0];
     let lastInsertId;
     if (firstRow) {
@@ -123,7 +189,8 @@ var db = {
    * Ejecuta sentencias DDL (CREATE TABLE, ALTER, etc.)
    */
   async exec(sql) {
-    await pool.query(sql);
+    const pgSql = convertPlaceholders(sql);
+    await executeRawQuery(pgSql);
   },
   getPool() {
     return pool;
@@ -538,7 +605,7 @@ var EventsService = class {
         }
         let depositPesos = 0;
         for (const p of pagos) {
-          if (p.tipo_pago === "SE\xD1A" || p.tipo_pago === "TOTAL") {
+          if (p.tipo_pago === "SE\xD1A" || p.tipo_pago === "TOTAL" || p.tipo_pago === "SALDO") {
             depositPesos += Number(p.monto) || 0;
           }
         }
@@ -549,7 +616,7 @@ var EventsService = class {
           guests: r.cantidad_invitados,
           stationIds: stations,
           status: r.estado_evento || "Presupuestado",
-          paymentStatus: r.estado_pago || "SE\xD1A_PENDIENTE",
+          paymentStatus: r.estado_pago || "SALDO_PENDIENTE",
           totalCents: Math.round((Number(r.monto_total) || 0) * 100),
           depositCents: Math.round(depositPesos * 100),
           dietary: {
@@ -564,7 +631,8 @@ var EventsService = class {
           durationHours: Number(r.duracion_horas) || 3,
           locationAddress: r.direccion_evento,
           distanceKm: Number(r.distancia_km) || 10,
-          insuranceCents: Math.round((Number(r.monto_seguro) || 0) * 100)
+          insuranceCents: Math.round((Number(r.monto_seguro) || 0) * 100),
+          cancelled: r.evento_cancelado === 1
         };
       })
     );
@@ -572,9 +640,10 @@ var EventsService = class {
   }
   static async createEvent(body) {
     const dbClient = getDatabase();
-    let cliente = await dbClient.queryOne("SELECT id_cliente FROM cliente WHERE razon_social = ?", [
-      body.clientName
-    ]);
+    let cliente = await dbClient.queryOne(
+      "SELECT id_cliente FROM cliente WHERE razon_social = ?",
+      [body.clientName]
+    );
     let idCliente = cliente?.id_cliente;
     if (!idCliente) {
       const insertResult = await dbClient.execute(
@@ -609,7 +678,7 @@ var EventsService = class {
         body.distanceKm || 10,
         0,
         body.status || "Se\xF1ado / Confirmado",
-        body.paymentStatus || "SE\xD1A_ABONADA",
+        body.paymentStatus || "SALDO_PENDIENTE",
         body.kitchenNotes || "",
         totalPesos,
         seguroPesos
@@ -644,7 +713,12 @@ var EventsService = class {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
            VALUES (?, ?, ?, ?)`,
-          [idReserva, "Vegetarianos", body.dietary.vegetarianos, "Men\xFA vegetariano"]
+          [
+            idReserva,
+            "Vegetarianos",
+            body.dietary.vegetarianos,
+            "Men\xFA vegetariano"
+          ]
         );
       }
       if (body.dietary.veganos > 0) {
@@ -681,10 +755,46 @@ var EventsService = class {
          estado_evento = COALESCE(?, estado_evento),
          estado_pago = COALESCE(?, estado_pago),
          notas_cocina = COALESCE(?, notas_cocina),
-         fecha_actualizacion = CURRENT_TIMESTAMP
+         fecha_actualizacion = CURRENT_TIMESTAMP,
+         fecha_evento = COALESCE(?, fecha_evento),
+         hora_inicio = COALESCE(?, hora_inicio),
+         evento_cancelado = COALESCE(?, evento_cancelado)
        WHERE id_reserva = ?`,
-      [updates.status ?? null, updates.paymentStatus ?? null, updates.kitchenNotes ?? null, idReserva]
+      [
+        updates.status ?? null,
+        updates.paymentStatus ?? null,
+        updates.kitchenNotes ?? null,
+        updates.eventDate ?? null,
+        updates.startTime ?? null,
+        updates.cancelled ?? null,
+        idReserva
+      ]
     );
+    if (updates.paymentStatus === "SALDADO") {
+      const res = await dbClient.queryOne(
+        `SELECT monto_total FROM reserva WHERE id_reserva = ?`,
+        [idReserva]
+      );
+      if (res) {
+        const montoTotal = Number(res.monto_total) || 0;
+        const pagosRows = await dbClient.query(
+          `SELECT monto FROM pago WHERE id_reserva = ? AND estado = 'confirmado'`,
+          [idReserva]
+        );
+        let yaAbonado = 0;
+        for (const p of pagosRows) {
+          yaAbonado += Number(p.monto) || 0;
+        }
+        const saldoRemanente = Math.max(0, montoTotal - yaAbonado);
+        if (saldoRemanente > 0) {
+          await dbClient.execute(
+            `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [idReserva, "SALDO", saldoRemanente, 1, 1, "confirmado"]
+          );
+        }
+      }
+    }
   }
 };
 
@@ -713,7 +823,17 @@ var EventsController = class {
         res.status(400).json({ error: "ID de reserva requerido" });
         return;
       }
-      await EventsService.updateEvent(id, req.body || {});
+      const updates = req.body || {};
+      if (updates.paymentStatus === "SALDADO") {
+        if (req.user?.role !== "admin") {
+          res.status(403).json({ error: "Solo los administradores pueden registrar cobros de saldo." });
+          return;
+        }
+      } else if (req.user?.role !== "admin" && req.user?.role !== "superadmin") {
+        res.status(403).json({ error: "No autorizado para modificar eventos." });
+        return;
+      }
+      await EventsService.updateEvent(id, updates);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -740,7 +860,7 @@ var EventsController = class {
 var eventsRouter = createRouter();
 eventsRouter.get("/", EventsController.list);
 eventsRouter.post("/", EventsController.create);
-eventsRouter.patch("/:id", EventsController.update);
+eventsRouter.patch("/:id", authGuard, EventsController.update);
 eventsRouter.get("/my-events", EventsController.myEvents);
 
 // server/modules/quotation/quotation.service.ts
@@ -1620,20 +1740,31 @@ async function app(req, res) {
           });
           try {
             let handlerIdx = 0;
-            const next = async (err) => {
-              if (err) {
-                if (!isResponseSent) {
-                  customRes.status(500).json({ error: err.message || "Error interno del servidor" });
+            const pending = [];
+            const next = (err) => {
+              const p = (async () => {
+                if (err) {
+                  if (!isResponseSent) {
+                    customRes.status(500).json({ error: err.message || "Error interno del servidor" });
+                  }
+                  return;
                 }
-                return;
-              }
-              if (handlerIdx < route.handlers.length && !isResponseSent) {
-                const currentHandler = route.handlers[handlerIdx++];
-                await currentHandler(customReq, customRes, next);
-              }
+                if (handlerIdx < route.handlers.length && !isResponseSent) {
+                  const currentHandler = route.handlers[handlerIdx++];
+                  await currentHandler(customReq, customRes, next);
+                }
+              })();
+              pending.push(p);
+              return p;
             };
             await next();
-            if (isResponseSent) return;
+            while (pending.length > 0) {
+              await Promise.all(pending.splice(0, pending.length));
+            }
+            if (!isResponseSent) {
+              customRes.status(500).json({ error: "La ruta no gener\xF3 respuesta" });
+            }
+            return;
           } catch (handlerErr) {
             if (!isResponseSent) {
               customRes.status(500).json({ error: handlerErr.message || "Error en ejecuci\xF3n de ruta" });

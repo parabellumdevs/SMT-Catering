@@ -83,7 +83,7 @@ export function LocationField() {
     >
       <div className="mb-4">
         <div className="flex items-center gap-2">
-          <MapPin className="h-5 w-5 text-primary" />
+          <MapPin className="h-5 w-5 text-[#581c25]" />
           <h2 id="location-heading" className="text-heading-lg font-light text-ink">
             Ubicación del evento
           </h2>
