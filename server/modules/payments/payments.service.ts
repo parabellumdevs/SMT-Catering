@@ -43,10 +43,12 @@ interface MercadoPagoPayment {
 
 export class PaymentError extends Error {
   statusCode: number;
-  constructor(message: string, statusCode: number = 400) {
+  object?: unknown;
+  constructor(message: string, statusCode: number = 400, object?: unknown) {
     super(message);
     this.name = "PaymentError";
     this.statusCode = statusCode;
+    this.object = object;
   }
 }
 
@@ -348,6 +350,7 @@ export class PaymentsService {
       throw new PaymentError(
         "Mercado Pago todavía no confirma el pago de esta reserva.",
         402,
+        matchesCheckout,
       );
     }
 
