@@ -30,6 +30,13 @@ export type EventStatus = EstadoEvento;
 /** Estado de cobro (equivalente a EstadoPago del MER) */
 export type PaymentStatus = EstadoPago;
 
+/** Observaciones alimentarias personalizadas con selector de cantidad */
+export interface CustomObservation {
+  id: string;
+  description: string;
+  count: number;
+}
+
 /** Restricciones alimentarias (formato frontend para cotizador rápido) */
 export interface DietaryRequirement {
   celiacos: number;
@@ -40,6 +47,8 @@ export interface DietaryRequirement {
   alergias: string;
   otrosDetalle?: string;
   otrosCantidad?: number;
+  /** Observaciones dinámicas con selector de cantidad */
+  customObservations?: CustomObservation[];
 }
 
 /** Estación culinaria */

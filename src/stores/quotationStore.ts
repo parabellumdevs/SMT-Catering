@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 import { GUEST_MAX, GUEST_MIN, type StationId } from "@/lib/constants";
-import type { DietaryRequirement } from "@/types/domain";
+import type { CustomObservation, DietaryRequirement } from "@/types/domain";
 import type { GeoPoint } from "@shared/geo";
 
 /**
@@ -10,27 +10,14 @@ import type { GeoPoint } from "@shared/geo";
 const clamp = (n: number): number =>
   Math.min(GUEST_MAX, Math.max(GUEST_MIN, n));
 
-/**
- * Estado global del Cotizador en Tiempo Real (Módulo 1).
- *
- * Propósito:
- * - Almacena los parámetros configurados en el cotizador interactivo.
- * - `rangeWarning`: señal reactiva para advertir al usuario cuando intentó exceder los límites [50–120].
- * - `reset`: restaura el cotizador a valores predeterminados seguros tras confirmar una reserva.
- */
 interface QuotationState {
   guests: number;
-  /** true cuando el usuario intentó salir del rango [50-120] (mostrar advertencia amigable). */
   rangeWarning: boolean;
   stationIds: StationId[];
-  /** Ids de ítems adicionales (tarifas category 'extra'). */
   extraIds: string[];
   dietary: DietaryRequirement;
-  /** Dirección donde se realiza el evento (lo que se ve en el campo). */
   locationAddress: string;
-  /** Coordenadas de la sugerencia elegida; null hasta que se elige una dentro de la zona de cobertura. */
   locationPoint: GeoPoint | null;
-  /** Distancia en línea recta al punto base, en km; null mientras no haya dirección válida. */
   locationDistanceKm: number | null;
   eventDate: string | null;
   setGuests: (raw: number) => void;
@@ -38,9 +25,17 @@ interface QuotationState {
   toggleStation: (id: StationId) => void;
   toggleExtra: (id: string) => void;
   setDietary: (patch: Partial<DietaryRequirement>) => void;
-  /** Al escribir se invalida la selección anterior (coordenadas y distancia). */
+  
+  /* Acciones para observaciones personalizadas dinámicas */
+  addCustomObservation: () => void;
+  updateCustomObservation: (
+    id: string,
+    field: "description" | "count",
+    value: string | number
+  ) => void;
+  removeCustomObservation: (id: string) => void;
+
   setLocationAddress: (address: string) => void;
-  /** Se llama al elegir una sugerencia dentro de la zona de cobertura. */
   selectLocation: (selection: {
     address: string;
     point: GeoPoint;
@@ -57,7 +52,16 @@ const initialState = {
   rangeWarning: false,
   stationIds: ["entradas", "pastas"] as StationId[],
   extraIds: [] as string[],
-  dietary: { celiacos: 0, vegetarianos: 0, veganos: 0, hipertensos:0, alergias: "" },
+  dietary: {
+    celiacos: 0,
+    vegetarianos: 0,
+    veganos: 0,
+    hipertensos: 0,
+    alergias: "",
+    customObservations: [
+      { id: "obs-1", description: "", count: 0 },
+    ] as CustomObservation[],
+  },
   locationAddress: "",
   locationPoint: null as GeoPoint | null,
   locationDistanceKm: null as number | null,
@@ -83,6 +87,51 @@ export const useQuotationStore = create<QuotationState>()((set) => ({
         : [...s.extraIds, id],
     })),
   setDietary: (patch) => set((s) => ({ dietary: { ...s.dietary, ...patch } })),
+
+  addCustomObservation: () =>
+    set((s) => {
+      const currentObs = s.dietary.customObservations || [];
+      return {
+        dietary: {
+          ...s.dietary,
+          customObservations: [
+            ...currentObs,
+            { id: crypto.randomUUID(), description: "", count: 0 },
+          ],
+        },
+      };
+    }),
+
+  updateCustomObservation: (id, field, value) =>
+    set((s) => {
+      const currentObs = s.dietary.customObservations || [];
+      let finalValue = value;
+
+      if (field === "count" && typeof value === "number") {
+        finalValue = Math.max(0, Math.min(value, s.guests));
+      }
+
+      return {
+        dietary: {
+          ...s.dietary,
+          customObservations: currentObs.map((obs) =>
+            obs.id === id ? { ...obs, [field]: finalValue } : obs
+          ),
+        },
+      };
+    }),
+
+  removeCustomObservation: (id) =>
+    set((s) => {
+      const currentObs = s.dietary.customObservations || [];
+      return {
+        dietary: {
+          ...s.dietary,
+          customObservations: currentObs.filter((obs) => obs.id !== id),
+        },
+      };
+    }),
+
   setLocationAddress: (address) =>
     set({
       locationAddress: address,
