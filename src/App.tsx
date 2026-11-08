@@ -10,10 +10,10 @@
  *  - /tarifas → Gestión de tarifas (protegida).
  *  - /perfil → Perfil del cliente (protegida, solo rol cliente).
  *
- * Guardia de autenticación:
- *  El componente ProtectedRoute lee el estado de authStore.
- *  Si no hay sesión activa, redirige a /login preservando la URL
- *  original para posible redirect post-login.
+ * Guardia de autenticación y autorización (RBAC):
+ *  El componente RoleRoute lee el estado de authStore (isAuthenticated y user.role).
+ *  Si no hay sesión activa, redirige a /login. Si el rol no tiene permiso para la
+ *  ruta solicitada, redirige automáticamente a la pantalla de inicio de su rol.
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect } from 'react'
@@ -66,7 +66,7 @@ function RoleRoute({ allowedRoles, children }: RoleRouteProps) {
     return <Navigate to="/login" replace />
   }
 
-  if (allowedRoles && role && !allowedRoles.includes(role)) {
+  if (allowedRoles && (!role || !allowedRoles.includes(role))) {
     return <Navigate to={getDefaultRouteForRole(role)} replace />
   }
 

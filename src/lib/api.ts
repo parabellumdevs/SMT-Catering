@@ -45,7 +45,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   if (!response.ok) {
-    if (response.status === 401 && !endpoint.includes('/api/auth/login')) {
+    if (
+      response.status === 401 &&
+      !endpoint.includes('/api/auth/login') &&
+      !endpoint.includes('/api/auth/logout')
+    ) {
       onUnauthorizedHandler?.()
     }
     const errorMsg = json?.error || json?.message || `Error HTTP ${response.status}: ${response.statusText}`
