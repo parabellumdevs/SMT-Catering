@@ -29,37 +29,48 @@ import { PricingPage } from '@/features/pricing/PricingPage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
 import { UsersPage } from '@/features/users/UsersPage'
 import { useAuthStore } from '@/stores/authStore'
+import type { UserRole } from '@shared/types/roles'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
 })
 
 /**
- * ProtectedRoute — Guardia de ruta que verifica autenticación.
- *
- * Si el usuario no tiene sesión activa (authStore.isAuthenticated === false),
- * lo redirige a /login. Usa <Outlet /> para renderizar las rutas hijas
- * envueltas en AppShell.
+ * Devuelve la pantalla de inicio correspondiente a cada rol:
+ * - cliente: / (Cotizador)
+ * - cocina, admin, superadmin: /dashboard (Panel operativo de eventos)
  */
-function ProtectedRoute() {
+function getDefaultRouteForRole(role?: UserRole): string {
+  if (role === 'cliente') return '/'
+  if (role === 'cocina' || role === 'admin' || role === 'superadmin') return '/dashboard'
+  return '/login'
+}
+
+/**
+ * RoleRoute — Guardia unificado de autenticación y autorización por rol (RBAC).
+ *
+ * 1. Si no hay sesión activa (isAuthenticated === false) -> redirige a /login.
+ * 2. Si el rol no está entre allowedRoles -> redirige al home del rol respectivo.
+ * 3. Si está autorizado -> renderiza children o <Outlet />.
+ */
+interface RoleRouteProps {
+  allowedRoles?: UserRole[]
+  children?: React.ReactNode
+}
+
+function RoleRoute({ allowedRoles, children }: RoleRouteProps) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const role = useAuthStore((s) => s.user?.role)
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
   }
 
-  return <Outlet />
-}
-
-/**
- * AdminRoute — Guardia que restringe rutas exclusivas para Superadmin y Administradores.
- */
-function AdminRoute({ children }: { children: React.ReactNode }) {
-  const role = useAuthStore((s) => s.user?.role)
-  if (role && role !== 'superadmin' && role !== 'admin') {
-    return <Navigate to="/" replace />
+  if (allowedRoles && role && !allowedRoles.includes(role)) {
+    return <Navigate to={getDefaultRouteForRole(role)} replace />
   }
-  return <>{children}</>
+
+  return children ? <>{children}</> : <Outlet />
 }
 
 export default function App() {
@@ -76,23 +87,65 @@ export default function App() {
             {/* Ruta pública — Login (sin AppShell, pantalla completa) */}
             <Route path="login" element={<LoginPage />} />
 
-            {/* Rutas protegidas — requieren autenticación */}
-            <Route element={<ProtectedRoute />}>
+            {/* Rutas protegidas — requieren autenticación y rol autorizado */}
+            <Route element={<RoleRoute />}>
               <Route element={<AppShell />}>
-                <Route index element={<QuotationPage />} />
-                <Route path="dashboard" element={<DashboardPage />} />
-                <Route path="comandas" element={<ComandaListPage />} />
-                <Route path="comandas/:eventId" element={<ComandaDetailPage />} />
-                <Route path="tarifas" element={<PricingPage />} />
+                <Route
+                  index
+                  element={
+                    <RoleRoute allowedRoles={['cliente', 'admin', 'superadmin']}>
+                      <QuotationPage />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="dashboard"
+                  element={
+                    <RoleRoute allowedRoles={['admin', 'superadmin', 'cocina']}>
+                      <DashboardPage />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="comandas"
+                  element={
+                    <RoleRoute allowedRoles={['cocina', 'admin', 'superadmin']}>
+                      <ComandaListPage />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="comandas/:eventId"
+                  element={
+                    <RoleRoute allowedRoles={['cocina', 'admin', 'superadmin']}>
+                      <ComandaDetailPage />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="tarifas"
+                  element={
+                    <RoleRoute allowedRoles={['admin', 'superadmin']}>
+                      <PricingPage />
+                    </RoleRoute>
+                  }
+                />
                 <Route
                   path="usuarios"
                   element={
-                    <AdminRoute>
+                    <RoleRoute allowedRoles={['admin', 'superadmin']}>
                       <UsersPage />
-                    </AdminRoute>
+                    </RoleRoute>
                   }
                 />
-                <Route path="perfil" element={<ProfilePage />} />
+                <Route
+                  path="perfil"
+                  element={
+                    <RoleRoute allowedRoles={['cliente']}>
+                      <ProfilePage />
+                    </RoleRoute>
+                  }
+                />
               </Route>
             </Route>
 

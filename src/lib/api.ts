@@ -16,6 +16,13 @@ class ApiError extends Error {
   }
 }
 
+type UnauthorizedHandler = () => void
+let onUnauthorizedHandler: UnauthorizedHandler | null = null
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
+  onUnauthorizedHandler = handler
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
 
@@ -38,6 +45,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   if (!response.ok) {
+    if (response.status === 401 && !endpoint.includes('/api/auth/login')) {
+      onUnauthorizedHandler?.()
+    }
     const errorMsg = json?.error || json?.message || `Error HTTP ${response.status}: ${response.statusText}`
     throw new ApiError(response.status, errorMsg, json)
   }

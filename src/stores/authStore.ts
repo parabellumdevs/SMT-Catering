@@ -7,7 +7,7 @@
  */
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import { api } from '@/lib/api'
+import { api, setUnauthorizedHandler } from '@/lib/api'
 import type { UserRole } from '@shared/types/roles'
 
 export interface AuthUser {
@@ -70,9 +70,13 @@ export const useAuthStore = create<AuthState>()(
               user: res.user,
               username: res.user.fullName || res.user.username,
             })
+          } else {
+            // Sesión nula (cookie inválida o expirada)
+            set({ isAuthenticated: false, user: null, username: null })
           }
         } catch {
-          // Sesión no válida o offline
+          // Sesión no válida, expirada o backend offline
+          set({ isAuthenticated: false, user: null, username: null })
         }
       },
     }),
@@ -82,3 +86,8 @@ export const useAuthStore = create<AuthState>()(
     },
   ),
 )
+
+// Interceptor reactivo: ante un 401 del backend, limpia el store de inmediato
+setUnauthorizedHandler(() => {
+  useAuthStore.getState().logout()
+})
