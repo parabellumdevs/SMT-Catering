@@ -80,7 +80,7 @@ export function DietaryMatrix() {
         {/* Hipertensos */}
         <div className="space-y-2">
           <Label htmlFor="hipertensos" className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
-            Hipertensos
+            Hipertensos (Sin sal)
           </Label>
           <Input
             id="hipertensos"
