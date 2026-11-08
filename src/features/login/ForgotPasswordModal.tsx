@@ -3,10 +3,10 @@
  *
  * Paso 1 — Solicitar reset:
  *   Captura el email del usuario y llama a POST /api/auth/forgot-password.
- *   El backend genera un token temporal (1 h) e imprime en consola (dev) / envía email (prod).
+ *   El backend genera un código de 6 dígitos (válido 10 min) y lo envía por email.
  *
  * Paso 2 — Confirmar nueva contraseña:
- *   El usuario ingresa el token recibido y su nueva contraseña dos veces.
+ *   El usuario ingresa el código recibido y su nueva contraseña dos veces.
  *   Llama a POST /api/auth/reset-password. Al éxito vuelve al login.
  */
 import { type FormEvent, useState } from 'react'
@@ -69,6 +69,7 @@ export function ForgotPasswordModal({ onClose }: ForgotPasswordModalProps) {
     setResetLoading(true)
     try {
       await api.post('/api/auth/reset-password', {
+        email: email.trim(),
         token: token.trim(),
         newPass,
         confirmPass,
@@ -167,21 +168,24 @@ export function ForgotPasswordModal({ onClose }: ForgotPasswordModalProps) {
                 Ingresá el código
               </h2>
               <p className="mt-1.5 text-[14px] font-light text-ink-mute">
-                Revisá la consola del servidor (dev) o tu email y pegá el código recibido.
+                Revisá tu correo electrónico (si no aparece en Recibidos, chequeá la carpeta de Spam) e ingresá el código.
               </p>
             </div>
 
             <form onSubmit={handleConfirmReset} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="reset-token">Código de verificación</Label>
+                <Label htmlFor="reset-token">Código de verificación (6 dígitos)</Label>
                 <Input
                   id="reset-token"
                   type="text"
-                  placeholder="Pegá el código aquí"
+                  placeholder="123456"
+                  maxLength={6}
+                  className="font-mono text-center text-lg font-semibold tracking-[6px]"
                   autoFocus
                   value={token}
                   onChange={(e) => {
-                    setToken(e.target.value)
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 6)
+                    setToken(val)
                     setResetError('')
                   }}
                 />
