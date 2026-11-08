@@ -35,12 +35,17 @@ export function useClientCompanyField(open: boolean): ClientCompanyField {
     if (!open || !isClient || company !== null) return
     let cancelled = false
     api
-      .get<{ profile: ClientProfileBrief }>('/api/client/profile')
+      .get<any>('/api/client/profile')
       .then((res) => {
-        if (!cancelled) setCompany(res?.profile?.razonSocial?.trim() ?? '')
+        if (cancelled) return
+        const razonSocial =
+          res?.razonSocial ??
+          res?.data?.razonSocial ??
+          res?.profile?.razonSocial ??
+          ''
+        setCompany(razonSocial.trim())
       })
       .catch(() => {
-        // Sin perfil (o backend caído): no bloquea el formulario.
         if (!cancelled) setCompany('')
       })
     return () => {

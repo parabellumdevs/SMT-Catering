@@ -110,7 +110,7 @@ export function ConfirmEventModal({ open, onOpenChange, paymentMethodLabel }: Pr
 
       // El cliente nunca marca la seña como abonada: con transferencia queda pendiente
       // hasta que el administrador la confirme.
-      const paymentStatus: PaymentStatus = isTransfer ? 'SEÑA PENDIENTE' : 'SALDO PENDIENTE'
+      const paymentStatus: PaymentStatus = isTransfer ? 'SEÑA_PENDIENTE' : 'SALDO_PENDIENTE'
 
       const newRecord = addEvent({
         clientName: clientName.trim(),
