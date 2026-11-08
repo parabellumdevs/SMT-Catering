@@ -42,9 +42,11 @@ interface MercadoPagoPayment {
 }
 
 export class PaymentError extends Error {
+  statusCode: number;
   constructor(message: string, statusCode: number = 400) {
     super(message);
     this.name = "PaymentError";
+    this.statusCode = statusCode;
   }
 }
 
@@ -258,7 +260,7 @@ export class PaymentsService {
             pending: buildReturnUrl(origin, "pending"),
             failure: buildReturnUrl(origin, "failure"),
           },
-          ...(origin.startsWith("https://") ? { auto_return: "approved" } : {}),
+          auto_return: "approved",
         }),
       });
 
@@ -375,6 +377,10 @@ export class PaymentsService {
     }
 
     try {
+      console.log(
+        "Creando evento con datos de reserva:",
+        checkout.reservation_data,
+      );
       const event = await EventsService.createEvent(checkout.reservation_data);
       if (!event?.id) {
         throw new Error(
