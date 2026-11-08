@@ -203,10 +203,18 @@ export class EventsService {
 
     // 5. Pago inicial (seña)
     if (body.depositCents > 0) {
+      const isPaidInFull = body.paymentStatus === "SALDADO";
       await dbClient.execute(
         `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [idReserva, "SEÑA", body.depositCents / 100, 1, 0, "confirmado"],
+        [
+          idReserva,
+          isPaidInFull ? "TOTAL" : "SEÑA",
+          body.depositCents / 100,
+          1,
+          isPaidInFull ? 1 : 0,
+          "confirmado",
+        ],
       );
     }
 

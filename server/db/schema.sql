@@ -91,6 +91,18 @@ CREATE TABLE IF NOT EXISTS pago (
   estado VARCHAR(20) NOT NULL CHECK(estado IN ('pendiente', 'confirmado', 'cancelado'))
 );
 
+-- Preferencias y pagos de Mercado Pago Checkout Pro
+CREATE TABLE IF NOT EXISTS mercado_pago_checkout (
+  external_reference TEXT PRIMARY KEY,
+  preference_id TEXT,
+  reservation_data JSONB NOT NULL,
+  expected_amount_cents INTEGER NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  payment_id TEXT UNIQUE,
+  event_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 8. COMANDAS DE PRODUCCION
 CREATE TABLE IF NOT EXISTS comanda_produccion (
   id_comanda SERIAL PRIMARY KEY,

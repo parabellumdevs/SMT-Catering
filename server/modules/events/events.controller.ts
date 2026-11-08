@@ -13,6 +13,7 @@ export class EventsController {
 
   static async create(req: Request, res: Response): Promise<void> {
     try {
+      console.log("Creating event with data:", req.body);
       const event = await EventsService.createEvent(req.body || {});
       res.status(201).json({ event });
     } catch (error: any) {
@@ -32,11 +33,21 @@ export class EventsController {
 
       if (updates.paymentStatus === "SALDADO") {
         if (req.user?.role !== "admin") {
-          res.status(403).json({ error: "Solo los administradores pueden registrar cobros de saldo." });
+          res
+            .status(403)
+            .json({
+              error:
+                "Solo los administradores pueden registrar cobros de saldo.",
+            });
           return;
         }
-      } else if (req.user?.role !== "admin" && req.user?.role !== "superadmin") {
-        res.status(403).json({ error: "No autorizado para modificar eventos." });
+      } else if (
+        req.user?.role !== "admin" &&
+        req.user?.role !== "superadmin"
+      ) {
+        res
+          .status(403)
+          .json({ error: "No autorizado para modificar eventos." });
         return;
       }
 
