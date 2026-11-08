@@ -40,7 +40,8 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - > - **Renderizado UI (Frontend):** Al cargar la aplicación, el frontend consulta `GET /api/auth/me` y guarda la sesión en `useAuthStore` únicamente para propósitos visuales (ocultar botones que el rol no puede ejecutar, adaptar la navegación en `AppShell` y mostrar saludo personalizado).
 - [x] **Sistema de Roles y Permisos (RBAC)**
   - [x] Definir los 4 roles del sistema en contratos compartidos ([`shared/types/roles.ts`](../shared/types/roles.ts)): `superadmin`, `admin`, `cocina` y `cliente`.
-  - [x] Integrar guards en frontend ([`src/App.tsx`](../src/App.tsx)) para restringir rutas según rol autenticado (`ProtectedRoute` y `AdminRoute`).
+  - [x] Integrar guardia unificado estricto por rol en frontend ([`src/App.tsx`](../src/App.tsx)) mediante `<RoleRoute allowedRoles={[...]} />` con redirección automática al home de cada rol (RBAC completo).
+  - [x] Saneamiento reactivo de sesión en frontend ([`src/stores/authStore.ts`](../src/stores/authStore.ts) y [`src/lib/api.ts`](../src/lib/api.ts)) con interceptor ante respuestas 401 y limpieza forzosa de `sessionStorage` ante cookies ausentes o expiradas.
 - [x] **Proxy de Desarrollo & Cliente HTTP Unificado**
   - [x] Configurar proxy de Vite en [`vite.config.ts`](../vite.config.ts) (`/api` -> `http://localhost:3001`) para evitar errores de CORS y habilitar transporte transparente de cookies en desarrollo y producción.
   - [x] Crear cliente HTTP centralizado ([`src/lib/api.ts`](../src/lib/api.ts)) para unificar llamadas del frontend a endpoints relativos (`/api/...`).
