@@ -70,7 +70,7 @@ INSERT INTO reserva (
 ) VALUES
   (1041, 1, CURRENT_DATE + INTERVAL '12 days', '19:30', '22:30', 3.0,
    90, 'Pasteur 4600, CABA', 8.50, 0,
-   'Señado / Confirmado', 'SEÑA_ABONADA', 'Salsa sin glutamato monosódico para la mesa 6.',
+   'Señado / Confirmado', 'SALDO_PENDIENTE', 'Salsa sin glutamato monosódico para la mesa 6.',
    1188000.00, 80000.00, CURRENT_TIMESTAMP - INTERVAL '30 days', 'admin'),
 
   (1042, 2, CURRENT_DATE + INTERVAL '25 days', '20:00', '23:00', 3.0,
@@ -80,22 +80,22 @@ INSERT INTO reserva (
 
   (1043, 3, CURRENT_DATE + INTERVAL '5 days', '19:00', '22:00', 3.0,
    60, 'Humboldt 1550, CABA', 5.00, 0,
-   'Señado / Confirmado', 'SEÑA_PENDIENTE', 'Evento con proyección: requiere toma de corriente cerca del buffet.',
+   'Señado / Confirmado', 'SALDO_PENDIENTE', 'Evento con proyección: requiere toma de corriente cerca del buffet.',
    738000.00, 80000.00, CURRENT_TIMESTAMP - INTERVAL '15 days', 'admin'),
 
   (1044, 4, CURRENT_DATE + INTERVAL '48 days', '20:00', '23:00', 3.0,
    100, 'Santa Fe 2830, CABA', 7.50, 0,
-   'Presupuestado', 'SEÑA_PENDIENTE', '',
+   'Presupuestado', 'SALDO_PENDIENTE', '',
    1430000.00, 80000.00, CURRENT_TIMESTAMP - INTERVAL '2 days', 'admin'),
 
   (1039, 5, CURRENT_DATE - INTERVAL '10 days', '19:30', '22:30', 3.0,
    80, 'Av. Leandro N. Alem 855, CABA', 9.00, 0,
-   'Completado', 'TOTALMENTE_SALDADO', '',
+   'Completado', 'SALDADO', '',
    1024000.00, 80000.00, CURRENT_TIMESTAMP - INTERVAL '45 days', 'admin'),
 
   (1045, 6, CURRENT_DATE + INTERVAL '5 days', '20:30', '23:30', 3.0,
    55, 'Bonpland 1800, CABA', 6.00, 0,
-   'Señado / Confirmado', 'SEÑA_ABONADA', 'Evento concurrente con EV-1043.',
+   'Señado / Confirmado', 'SALDO_PENDIENTE', 'Evento concurrente con EV-1043.',
    687500.00, 80000.00, CURRENT_TIMESTAMP - INTERVAL '10 days', 'admin')
 ON CONFLICT (id_reserva) DO UPDATE SET
   fecha_evento = EXCLUDED.fecha_evento,

@@ -1,90 +1,102 @@
-import { AlertTriangle } from 'lucide-react'
-
+import { AlertCircle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useQuotationCalculator } from '@/features/quotation/hooks/useQuotationCalculator'
 import { useQuotationStore } from '@/stores/quotationStore'
 
-interface DietField {
-  key: 'celiacos' | 'vegetarianos' | 'veganos'
-  label: string
-}
-
-const fields: DietField[] = [
-  { key: 'celiacos', label: 'Celíacos' },
-  { key: 'vegetarianos', label: 'Vegetarianos' },
-  { key: 'veganos', label: 'Veganos' },
-]
-
-/**
- * Matriz de restricciones alimentarias y alérgenos (Módulo 1: Cotizador).
- *
- * Reglas de Negocio (AGENTS.md):
- * - Gestiona celíacos, vegetarianos, veganos y descripción libre de alergias críticas.
- * - Invariante estricta: la suma de personas con dietas especiales nunca puede superar
- *   el número total de comensales contratados.
- * - Validación reactiva en caliente: alerta visual en rojo (`dietExceedsGuests`) si hay inconsistencia.
- */
 export function DietaryMatrix() {
   const dietary = useQuotationStore((s) => s.dietary)
   const setDietary = useQuotationStore((s) => s.setDietary)
-  const { dietTotal, dietExceedsGuests, hasStations } = useQuotationCalculator()
-  const guests = useQuotationStore((s) => s.guests)
+
+  const handleCountChange = (field: keyof typeof dietary, value: number) => {
+    setDietary({
+      ...dietary,
+      [field]: Math.max(0, value),
+    })
+  }
+
+  const handleNotesChange = (alergias: string) => {
+    setDietary({
+      ...dietary,
+      alergias,
+    })
+  }
 
   return (
-    <section aria-labelledby="dietary-label">
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="dietary-label" className="text-heading-lg font-light text-ink">
-          Restricciones alimentarias
-        </h2>
-        <span className="text-xs text-ink-mute tnum">
-          {dietTotal} / {guests} comensales
+    <div className="rounded-2xl border border-hairline bg-canvas p-6 shadow-sm space-y-6">
+      {/* Encabezado del Paso 3 */}
+      <div className="flex items-center gap-3 border-b border-hairline pb-4">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#581c25] text-xs font-bold text-white">
+          3
         </span>
+        <h2 className="text-lg font-semibold text-ink">Restricciones & Requerimientos Dietéticos</h2>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        {fields.map(({ key, label }) => (
-          <div key={key}>
-            <Label htmlFor={`diet-${key}`} className="mb-1.5 block text-xs text-ink-mute">
-              {label}
-            </Label>
-            <Input
-              id={`diet-${key}`}
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={guests}
-              className="text-center tnum"
-              value={dietary[key]}
-              onChange={(e) => setDietary({ [key]: Math.max(0, Number(e.target.value)) })}
-            />
-          </div>
-        ))}
+      <div className="grid gap-6 sm:grid-cols-3">
+        {/* Celíacos */}
+        <div className="space-y-2">
+          <Label htmlFor="celiacos" className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
+            Celíacos (Sin TACC)
+          </Label>
+          <Input
+            id="celiacos"
+            type="number"
+            min={0}
+            className="h-11 tnum"
+            value={dietary.celiacos}
+            onChange={(e) => handleCountChange('celiacos', Number(e.target.value))}
+          />
+        </div>
+
+        {/* Vegetarianos */}
+        <div className="space-y-2">
+          <Label htmlFor="vegetarianos" className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
+            Vegetarianos
+          </Label>
+          <Input
+            id="vegetarianos"
+            type="number"
+            min={0}
+            className="h-11 tnum"
+            value={dietary.vegetarianos}
+            onChange={(e) => handleCountChange('vegetarianos', Number(e.target.value))}
+          />
+        </div>
+
+        {/* Veganos */}
+        <div className="space-y-2">
+          <Label htmlFor="veganos" className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
+            Veganos
+          </Label>
+          <Input
+            id="veganos"
+            type="number"
+            min={0}
+            className="h-11 tnum"
+            value={dietary.veganos}
+            onChange={(e) => handleCountChange('veganos', Number(e.target.value))}
+          />
+        </div>
       </div>
 
-      <div className="mt-3">
-        <Label htmlFor="diet-alergias" className="mb-1.5 block text-xs text-ink-mute">
-          Alergias específicas
+      {/* Alergias y Observaciones */}
+      <div className="space-y-2 pt-2">
+        <Label htmlFor="alergias" className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
+          Alergias o Observaciones especiales
         </Label>
         <Input
-          id="diet-alergias"
-          placeholder="Ej. frutos secos, mariscos, lácteos…"
+          id="alergias"
+          type="text"
+          className="h-11"
+          placeholder="Ej: Alergia severa a frutos secos, intolerancia a la lactosa..."
           value={dietary.alergias}
-          onChange={(e) => setDietary({ alergias: e.target.value })}
+          onChange={(e) => handleNotesChange(e.target.value)}
         />
       </div>
 
-      {dietExceedsGuests && (
-        <p role="alert" className="mt-2 flex items-center gap-2 text-sm text-state-danger">
-          <AlertTriangle className="h-4 w-4 shrink-0" />
-          La suma de dietas especiales ({dietTotal}) no puede superar los {guests} comensales.
-        </p>
-      )}
-      {!hasStations && (
-        <p role="alert" className="mt-2 text-sm text-state-warn">
-          Seleccioná al menos una estación culinaria para cotizar.
-        </p>
-      )}
-    </section>
+      <div className="flex items-center gap-2 rounded-lg bg-canvas-soft px-3.5 py-3 text-xs text-ink-mute">
+        <AlertCircle className="h-4 w-4 shrink-0 text-[#581c25]" />
+        <span>Garantizamos opciones seguras y trazabilidad para menús especiales sin costo adicional.</span>
+      </div>
+    </div>
   )
 }

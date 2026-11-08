@@ -7,7 +7,8 @@ Documento maestro de seguimiento de tareas completadas (incluyendo los hitos de 
 ## 1. Backend, Infraestructura & Base de Datos
 
 ### 1.1 Fase 1 — Primera Implementación y Validación Local (Hitos Completados)
-*(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, contratos y flujos iniciales antes de la migración a infraestructura Cloud)*
+
+_(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, contratos y flujos iniciales antes de la migración a infraestructura Cloud)_
 
 - [x] **Base de Datos Inicial Local con SQLite (`node:sqlite`)**
   - [x] Configurar base de datos relacional local (`server/db/smt.sqlite`) sin dependencias binarias externas utilizando `node:sqlite` nativo.
@@ -51,8 +52,8 @@ Documento maestro de seguimiento de tareas completadas (incluyendo los hitos de 
 - [x] **Unificación de Contratos y Modelos en Español (según `MER_v3`)**
   - [x] Migrar interfaces, DTOs y tipos compartidos ([`shared/types/modelos.ts`](../shared/types/modelos.ts)) a español (`Cliente`, `UsuarioStaff`, `Reserva`, `Estacion`, `DetalleReservaEstacion`, `RestriccionAlimentaria`, `Pago`, `ComandaProduccion`, `Tarifa`).
   - [x] Adaptar modelos del frontend ([`src/types/domain.ts`](../src/types/domain.ts)) y stores (`eventStore`, `tariffStore`, `authStore`) para consumir los endpoints reales.
-- [ ] **Consolidación de Arquitectura Modular en Backend (Punto F)**
-  - [ ] Refactorizar y conectar [`server/modules/`](../server/modules) (`auth`, `events`, `quotation`, `production`, `tariffs`, `users`, `client`) para que utilicen el cliente asíncrono de **PostgreSQL (Neon)** y las tablas en español del `MER_v3` que hoy viven de forma monolítica en [`server/index.ts`](../server/index.ts), eliminando las llamadas obsoletas a `db.prepare()` de la Fase 1.
+- [x] **Consolidación de Arquitectura Modular en Backend (Punto F)**
+  - [x] Refactorizar y conectar [`server/modules/`](../server/modules) (`auth`, `events`, `quotation`, `production`, `tariffs`, `users`, `profile`) para que utilicen el cliente asíncrono de **PostgreSQL (Neon)** y las tablas en español del `MER_v3`, eliminando el monolito de [`server/index.ts`](../server/index.ts) y las llamadas obsoletas a `db.prepare()` de la Fase 1.
 
 ---
 
@@ -99,10 +100,10 @@ Documento maestro de seguimiento de tareas completadas (incluyendo los hitos de 
 
 ## 5. Cotizador en Tiempo Real [Cliente]
 
-- [ ] **Validación de Ubicación y Radio de Cobertura (20 km)**
+- [x] **Validación de Ubicación y Radio de Cobertura (20 km)**
   - [x] Definir regla de distancia máxima $\le 20\text{ km}$ en esquema Zod ([`shared/schemas/quotation.schema.ts`](../shared/schemas/quotation.schema.ts)) y columna `distancia_km` en base de datos.
-  - [ ] Campo en frontend ([`QuotationPage.tsx`](../src/features/quotation/QuotationPage.tsx)) para ingresar dirección del evento.
-  - [ ] Validación de distancia dentro del radio operativo de **20 km a la redonda** desde el punto base establecido (**Monserrat, Venezuela 1478, CABA**).
+  - [x] Campo en frontend ([`QuotationPage.tsx`](../src/features/quotation/QuotationPage.tsx)) para ingresar dirección del evento ([`LocationField.tsx`](../src/features/quotation/components/LocationField.tsx)).
+  - [x] Validación de distancia dentro del radio operativo de **20 km a la redonda** desde el punto base establecido (**Monserrat, Venezuela 1478, CABA**) con cálculo Haversine y autocompletado OSM ([`shared/geo.ts`](../shared/geo.ts), [`src/lib/geocoding.ts`](../src/lib/geocoding.ts)).
 - [ ] **Selector de Islas / Estaciones y Menú Oficial**
   - [ ] Actualizar en [`src/lib/constants.ts`](../src/lib/constants.ts) y [`server/db/seed.sql`](../server/db/seed.sql) las descripciones de las **5 estaciones gastronómicas** según el menú oficial del cliente:
     1. **Estación Entradas:** Tabla de quesos (Parmesano, Gouda, Roquefort), Tabla de fiambres (Jamón crudo, Jamón cocido, Salame de colonia) y Brochettes (Caprese y mixtos de pollo/vegetales).
@@ -120,7 +121,7 @@ Documento maestro de seguimiento de tareas completadas (incluyendo los hitos de 
 - [ ] **Fecha del Evento, Horarios & Disponibilidad**
   - [x] Definir reglas de validación en esquema Zod ([`shared/schemas/quotation.schema.ts`](../shared/schemas/quotation.schema.ts)) y servicio de cotización.
   - [x] Restringir la selección de fechas en el calendario exclusivamente a días **viernes, sábados y domingos** ([`AvailabilityCalendar.tsx`](../src/features/quotation/components/AvailabilityCalendar.tsx)).
-  - [ ] Unificar la antelación mínima de reserva (**14 / 15 días**) entre [`src/lib/constants.ts`](../src/lib/constants.ts) y [`shared/schemas/quotation.schema.ts`](../shared/schemas/quotation.schema.ts).
+  - [x] Unificar la antelación mínima de reserva (**14 / 15 días**) entre [`src/lib/constants.ts`](../src/lib/constants.ts) y [`shared/schemas/quotation.schema.ts`](../shared/schemas/quotation.schema.ts).
   - [ ] **Franja horaria y duración del servicio:**
     - [ ] Duración máxima del evento: **hasta 3 horas**.
     - [ ] El cliente debe seleccionar su horario dentro de la ventana operativa nocturna de **19:00 a 00:00 hs** (horario límite de finalización: 00:00 hs).
@@ -146,7 +147,7 @@ Documento maestro de seguimiento de tareas completadas (incluyendo los hitos de 
   - [ ] Mostrar tarjetas/grilla con: fecha y horario contratado, dirección, comensales, estaciones seleccionadas y estado de cobro.
 - [ ] **Acciones Disponibles por Evento**
   - [ ] **Ver Detalle:** modal o vista con el desglose completo de la cotización y servicios.
-  - [ ] **Pagar Saldo Restante (50%):** botón para abonar el saldo pendiente (vencimiento: hasta **24 horas antes** del evento) con redirección a pasarela de pagos y actualización a `TOTALMENTE_SALDADO`.
+  - [ ] **Pagar Saldo Restante (50%):** botón para abonar el saldo pendiente (vencimiento: hasta **24 horas antes** del evento) con redirección a pasarela de pagos y actualización a `SALDADO`.
   - [ ] **Comprobantes (PDF):** descarga o previsualización del comprobante comercial / factura de los pagos efectuados.
   - [ ] **Reprogramación:** solicitar cambio de fecha sin recargo, validando únicamente que la nueva fecha cumpla con las reglas de disponibilidad y concurrencia ($\le 60$ pax).
   - [ ] **Cancelación:** botón para solicitar cancelación del evento aplicando la política acordada:
@@ -170,7 +171,7 @@ Documento maestro de seguimiento de tareas completadas (incluyendo los hitos de 
 - [ ] **Acciones de Administración (`admin` y `superadmin`)**
   - [ ] Botón para ver detalle completo y editar parámetros del evento.
   - [ ] Botón para cambio/reprogramación manual de fecha validando disponibilidad.
-  - [ ] **Registro de pago manual/presencial** cuando el cliente abona en el local (actualizando el estado a `TOTALMENTE_SALDADO` e insertando el registro en `pago` sin redireccionar a pasarela externa).
+  - [ ] **Registro de pago manual/presencial** cuando el cliente abona en el local (actualizando el estado a `SALDADO` e insertando el registro en `pago` sin redireccionar a pasarela externa).
   - [ ] Botón para cancelación de evento con cálculo de reintegro según la regla de 7 días y baja de comanda en cocina.
 - [ ] **Separación de Vistas**
   - [ ] Mover las tarjetas de métricas (`KpiGrid`) fuera de [`DashboardPage.tsx`](../src/features/dashboard/components/KpiGrid.tsx) hacia la vista independiente de **"Métricas"** (`/metricas`).
@@ -209,7 +210,7 @@ Documento maestro de seguimiento de tareas completadas (incluyendo los hitos de 
 
 ## 10. Comandas de Producción [Cocina]
 
-*(Alineado con el modelo de referencia en [`cliente.md`](../.doc/cliente.md) y acuerdos de la Meet 5)*
+_(Alineado con el modelo de referencia en [`cliente.md`](../.doc/cliente.md) y acuerdos de la Meet 5)_
 
 - [ ] **Estructura del Ticket / Ficha de Producción ([`ComandaTicket.tsx`](../src/features/production/components/ComandaTicket.tsx) y [`DownloadButton.tsx`](../src/features/production/components/DownloadButton.tsx))**
   - [x] Modelo de comanda de cocina estructurado sin información de precios ni montos monetarios.

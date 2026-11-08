@@ -15,8 +15,8 @@ import { useQuotationStore } from '@/stores/quotationStore'
 import type { PaymentStatus } from '@/types/domain'
 
 interface Props {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  readonly open: boolean
+  readonly onOpenChange: (open: boolean) => void
 }
 
 export function ConfirmEventModal({ open, onOpenChange }: Props) {
@@ -31,7 +31,7 @@ export function ConfirmEventModal({ open, onOpenChange }: Props) {
 
   const [clientName, setClientName] = useState('')
   const [kitchenNotes, setKitchenNotes] = useState('')
-  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('SEÑA_ABONADA')
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('SALDO_PENDIENTE')
   const [createdEventId, setCreatedEventId] = useState<string | null>(null)
   const [today] = useState(() => startOfDay(new Date()))
 
@@ -51,10 +51,11 @@ export function ConfirmEventModal({ open, onOpenChange }: Props) {
       status: 'Señado / Confirmado',
       paymentStatus,
       totalCents,
-      depositCents: paymentStatus === 'SEÑA_ABONADA' ? depositCents : 0,
+      depositCents: paymentStatus === 'SALDO_PENDIENTE' ? depositCents : 0,
       insuranceCents,
       dietary,
       kitchenNotes: kitchenNotes.trim(),
+      cancelled: false,
     })
     setCreatedEventId(newRecord.id)
     resetQuotation()
@@ -106,8 +107,8 @@ export function ConfirmEventModal({ open, onOpenChange }: Props) {
                 <div>
                   <Label htmlFor="paymentStatus" className="mb-1 block text-xs">Estado de la seña</Label>
                   <select id="paymentStatus" className="w-full rounded-md border border-hairline-input bg-canvas px-3 py-2 text-sm text-ink" value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)}>
-                    <option value="SEÑA_ABONADA">Seña abonada ({DEPOSIT_PERCENT}% cobrada)</option>
-                    <option value="SEÑA_PENDIENTE">Seña pendiente de acreditación</option>
+                    <option value="SALDO_PENDIENTE">Seña abonada ({DEPOSIT_PERCENT}% cobrada)</option>
+                    <option value="SALDO_PENDIENTE">Seña pendiente de acreditación</option>
                   </select>
                 </div>
                 <div>

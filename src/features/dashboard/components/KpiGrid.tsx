@@ -23,14 +23,6 @@ function formatKpi(key: keyof EventsSummary, value: number): string {
 
 /**
  * Cuadrícula de Indicadores Clave de Desempeño (KPIs) del Dashboard (Módulo 2).
- *
- * Métricas calculadas:
- * 1. Eventos del mes: Conteo de eventos fechados en el mes en curso.
- * 2. Facturación total: Suma de importes totales (`totalCents`) contratados.
- * 3. Señas cobradas: Suma de señas acreditadas (50% de señados + 100% de saldados).
- * 4. Saldos por cobrar: Monto remanente (50%) de eventos pendientes de liquidación.
- *
- * Diseño: Grid responsivo de 4 columnas en desktop (>1280px), 2 en tablet y 1 en móvil.
  */
 export function KpiGrid({ summary }: { summary: EventsSummary }) {
   return (
@@ -38,7 +30,8 @@ export function KpiGrid({ summary }: { summary: EventsSummary }) {
       {kpis.map(({ key, label, icon: Icon }) => (
         <Card key={key}>
           <CardHeader className="flex-row items-center gap-2 p-4 pb-1">
-            <Icon className="h-4 w-4 text-primary" />
+            {/* 💡 Reemplazamos text-primary por text-brand (Borravino) */}
+            <Icon className="h-4 w-4 text-brand" />
             <CardTitle className="text-xs font-normal uppercase tracking-tight text-ink-mute">
               {label}
             </CardTitle>
