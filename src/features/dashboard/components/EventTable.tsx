@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar } from 'lucide-react'
+import { Calendar, CircleDollarSign } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -13,8 +13,10 @@ import {
 } from '@/components/ui/table'
 import { PaymentStatusBadge } from '@/features/dashboard/components/StatusBadges'
 import { RescheduleEventDialog } from '@/features/dashboard/components/RescheduleEventDialog'
+import { PayBalanceDialog } from '@/features/dashboard/components/PayBalanceDialog'
 import { stationById } from '@/lib/constants'
 import { formatCurrency } from '@/lib/utils'
+import { useAuthStore } from '@/stores/authStore'
 import type { EventRecord } from '@/types/domain'
 
 interface EventTableProps {
@@ -22,6 +24,7 @@ interface EventTableProps {
   readonly isNext?: boolean
   readonly onReschedule?: (eventId: string, newDate: string, newTime: string) => void
   readonly onCancel: (eventId: string) => void
+  readonly onPayBalance?: (eventId: string) => Promise<void> | void
 }
 
 function formatEventDate(isoDate: string): string {
@@ -61,6 +64,7 @@ interface EventActionsProps {
   readonly onToggle: () => void
   readonly onReschedule: (event: EventRecord) => void
   readonly onCancel: (eventId: string) => void
+  readonly onPayBalance?: (event: EventRecord) => void
   readonly onClose: () => void
 }
 
@@ -71,8 +75,12 @@ function EventActions({
   onToggle,
   onReschedule,
   onCancel,
+  onPayBalance,
   onClose,
 }: EventActionsProps) {
+  const role = useAuthStore((s) => s.user?.role)
+  const canPayBalance = role === 'admin' && event.paymentStatus === 'SALDO_PENDIENTE' && !event.cancelled
+
   const positionClass = menuPosition === 'above'
     ? 'right-0 bottom-full mb-2'
     : 'right-0 mt-2'
@@ -90,6 +98,19 @@ function EventActions({
 
       {isOpen && (
         <div className={`absolute ${positionClass} w-52 rounded-xl bg-white shadow-xl border border-gray-100 py-1.5 z-50 text-left`}>
+          {canPayBalance && onPayBalance && (
+            <button
+              type="button"
+              className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-emerald-700 hover:bg-emerald-50 transition-colors font-medium text-left"
+              onClick={() => {
+                onClose()
+                onPayBalance(event)
+              }}
+            >
+              <CircleDollarSign className="h-3.5 w-3.5 text-emerald-600 shrink-0" />{' '}
+              Pagar Saldo
+            </button>
+          )}
           <Link
             to={`/comandas/${event.id}`}
             className="flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors font-medium"
@@ -138,13 +159,19 @@ function StationBadges({ event }: { readonly event: EventRecord }) {
   )
 }
 
-export function EventTable({ events, isNext = false, onReschedule, onCancel }: EventTableProps) {
+export function EventTable({ events, isNext = false, onReschedule, onCancel, onPayBalance }: EventTableProps) {
   const sortedEvents = useMemo(() => sortEvents(events, isNext), [events, isNext])
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [rescheduleEvent, setRescheduleEvent] = useState<EventRecord | null>(null)
+  const [payBalanceEvent, setPayBalanceEvent] = useState<EventRecord | null>(null)
 
   const handleOpenReschedule = (event: EventRecord) => {
     setRescheduleEvent(event)
+    setOpenMenuId(null)
+  }
+
+  const handleOpenPayBalance = (event: EventRecord) => {
+    setPayBalanceEvent(event)
     setOpenMenuId(null)
   }
 
@@ -233,6 +260,7 @@ export function EventTable({ events, isNext = false, onReschedule, onCancel }: E
                       menuPosition={currentMenuPosition}
                       onToggle={() => setOpenMenuId(openMenuId === event.id ? null : event.id)}
                       onReschedule={handleOpenReschedule}
+                      onPayBalance={handleOpenPayBalance}
                       onClose={() => setOpenMenuId(null)}
                       onCancel={() => onCancel(event.id)}
                     />
@@ -253,18 +281,37 @@ export function EventTable({ events, isNext = false, onReschedule, onCancel }: E
           onReschedule={onReschedule}
         />
       )}
+
+      {payBalanceEvent && (
+        <PayBalanceDialog
+          key={payBalanceEvent.id}
+          event={payBalanceEvent}
+          onClose={() => setPayBalanceEvent(null)}
+          onConfirm={async (id) => {
+            if (onPayBalance) {
+              await onPayBalance(id)
+            }
+          }}
+        />
+      )}
     </>
   )
 }
 
 /** Tarjetas para móvil (<768px). */
-export function EventCards({ events, isNext = false, onReschedule, onCancel }: EventTableProps) {
+export function EventCards({ events, isNext = false, onReschedule, onCancel, onPayBalance }: EventTableProps) {
   const sortedEvents = useMemo(() => sortEvents(events, isNext), [events, isNext])
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [rescheduleEvent, setRescheduleEvent] = useState<EventRecord | null>(null)
+  const [payBalanceEvent, setPayBalanceEvent] = useState<EventRecord | null>(null)
 
   const handleOpenReschedule = (event: EventRecord) => {
     setRescheduleEvent(event)
+    setOpenMenuId(null)
+  }
+
+  const handleOpenPayBalance = (event: EventRecord) => {
+    setPayBalanceEvent(event)
     setOpenMenuId(null)
   }
 
@@ -315,6 +362,7 @@ export function EventCards({ events, isNext = false, onReschedule, onCancel }: E
                   menuPosition="above"
                   onToggle={() => setOpenMenuId(openMenuId === event.id ? null : event.id)}
                   onReschedule={handleOpenReschedule}
+                  onPayBalance={handleOpenPayBalance}
                   onClose={() => setOpenMenuId(null)}
                   onCancel={() => onCancel(event.id)}
                 />
@@ -331,6 +379,19 @@ export function EventCards({ events, isNext = false, onReschedule, onCancel }: E
           events={events}
           onClose={() => setRescheduleEvent(null)}
           onReschedule={onReschedule}
+        />
+      )}
+
+      {payBalanceEvent && (
+        <PayBalanceDialog
+          key={payBalanceEvent.id}
+          event={payBalanceEvent}
+          onClose={() => setPayBalanceEvent(null)}
+          onConfirm={async (id) => {
+            if (onPayBalance) {
+              await onPayBalance(id)
+            }
+          }}
         />
       )}
     </>

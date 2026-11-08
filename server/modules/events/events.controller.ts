@@ -27,7 +27,20 @@ export class EventsController {
         res.status(400).json({ error: "ID de reserva requerido" });
         return;
       }
-      await EventsService.updateEvent(id, req.body || {});
+
+      const updates = req.body || {};
+
+      if (updates.paymentStatus === "SALDADO") {
+        if (req.user?.role !== "admin") {
+          res.status(403).json({ error: "Solo los administradores pueden registrar cobros de saldo." });
+          return;
+        }
+      } else if (req.user?.role !== "admin" && req.user?.role !== "superadmin") {
+        res.status(403).json({ error: "No autorizado para modificar eventos." });
+        return;
+      }
+
+      await EventsService.updateEvent(id, updates);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

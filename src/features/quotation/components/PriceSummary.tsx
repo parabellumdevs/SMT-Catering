@@ -9,6 +9,13 @@ import { useTariffStore } from '@/stores/tariffStore'
 import { formatCurrency } from '@/lib/utils'
 import { useQuotationStore } from '@/stores/quotationStore'
 
+/** Etiquetas del medio de pago elegido, para reflejarlas en el modal de confirmación. */
+const PAYMENT_METHOD_LABELS = {
+  transferencia: 'Transferencia bancaria',
+  factura: 'Factura A',
+  tarjeta: 'Tarjeta de crédito',
+} as const
+
 export function PriceSummaryPanel() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'transferencia' | 'factura' | 'tarjeta'>('transferencia')
@@ -160,7 +167,11 @@ export function PriceSummaryPanel() {
           </div>
         </div>
       </div>
-      <ConfirmEventModal open={confirmOpen} onOpenChange={setConfirmOpen} />
+      <ConfirmEventModal
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        paymentMethodLabel={PAYMENT_METHOD_LABELS[paymentMethod]}
+      />
     </aside>
   )
 }
