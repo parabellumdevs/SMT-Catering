@@ -338,6 +338,28 @@ export class PaymentsService {
       `/v1/payments/${encodeURIComponent(paymentId)}`,
       { method: "GET" },
     );
+
+    console.log("--- DEBUG CHECKOUT MATCHES ---");
+    console.log("Payment Status:", payment.status, "-> Expected: approved");
+    console.log("Currency:", payment.currency_id, "-> Expected: ARS");
+    console.log(
+      "External Ref match:",
+      payment.external_reference === externalReference,
+      `(${payment.external_reference} vs ${externalReference})`,
+    );
+    console.log(
+      "Preference ID match:",
+      payment.preference_id === checkout.preference_id,
+      `(${payment.preference_id} vs ${checkout.preference_id})`,
+    );
+    console.log(
+      "Amount match:",
+      Math.round(payment.transaction_amount * 100),
+      "vs Expected:",
+      Number(checkout.expected_amount_cents),
+    );
+    console.log("------------------------------");
+
     const matchesCheckout =
       payment.status === "approved" &&
       payment.currency_id === "ARS" &&
@@ -380,10 +402,6 @@ export class PaymentsService {
     }
 
     try {
-      console.log(
-        "Creando evento con datos de reserva:",
-        checkout.reservation_data,
-      );
       const event = await EventsService.createEvent(checkout.reservation_data);
       if (!event?.id) {
         throw new Error(
