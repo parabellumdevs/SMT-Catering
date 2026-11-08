@@ -8,13 +8,14 @@ import type { UserRole } from "./roles";
 /** Estados de negocio del evento / reserva */
 export type EstadoEvento =
   | "Presupuestado"
+  | "Seña pendiente"
   | "Señado / Confirmado"
   | "En Producción"
   | "Completado"
   | "Cancelado";
 
 /** Estados de cobro y liquidación */
-export type EstadoPago = "SALDO_PENDIENTE" | "SALDADO";
+export type EstadoPago = "SEÑA_PENDIENTE" | "SALDO_PENDIENTE" | "SALDADO";
 
 /** Tipos de transacción de pago */
 export type TipoPago = "SEÑA" | "SALDO" | "TOTAL";
@@ -79,7 +80,7 @@ export interface DetalleReservaEstacion {
 export interface RestriccionAlimentaria {
   idRestriccion?: number;
   idReserva: number | string;
-  tipoRestriccion: string; // 'Celiaquía' | 'Vegetarianos' | 'Veganos' | 'Alergias' | 'Otros'
+  tipoRestriccion: string; // 'Celiaquía' | 'Vegetarianos' | 'Veganos' | 'Hipertensos' | 'Alergias' | 'Otros'
   cantidadPersonas: number;
   observaciones?: string;
 }

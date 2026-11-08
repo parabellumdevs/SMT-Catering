@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/layout/AppShell'
 import { cn, daysUntil } from '@/lib/utils'
 import { KpiGrid } from '@/features/dashboard/components/KpiGrid'
 import { EventCards, EventTable } from '@/features/dashboard/components/EventTable'
+import { isDepositPending } from '@/features/dashboard/components/StatusBadges'
 import {
   summarizeEvents,
   useEvents,
@@ -62,17 +63,36 @@ export function DashboardPage() {
     }
   }
 
-  const handlePayBalance = async (
-    eventId: string,
-  ) => {
+  const handleConfirmDeposit = async (eventId: string) => {
+    const target = events.find((e) => e.id === eventId)
+    if (target) {
+      const now = new Date()
+      // Otro evento vigente en la misma fecha: confirmado, o con seña pendiente dentro de su plazo.
+      const conflict = events.find((e) => {
+        if (e.id === eventId || e.eventDate !== target.eventDate) return false
+        if (e.cancelled || e.status === 'Cancelado') return false
+        if (isDepositPending(e.paymentStatus)) {
+          return e.depositDueAt ? new Date(e.depositDueAt) > now : true
+        }
+        return true
+      })
+      if (conflict) {
+        const fecha = target.eventDate.split('-').reverse().join('/')
+        const seguir = window.confirm(
+          `La fecha ${fecha} ya está ocupada por ${conflict.clientName} (${conflict.id}). ¿Confirmar la seña igual?`,
+        )
+        if (!seguir) return
+      }
+    }
+
     try {
       await api.patch(`/api/events/${eventId}`, {
-        paymentStatus: 'SALDADO',
+        status: 'Señado / Confirmado',
+        paymentStatus: 'SALDO_PENDIENTE',
       })
       await refetch()
     } catch (error) {
-      console.error('Fallo en el registro de saldo:', error)
-      throw error
+      console.error('Fallo al confirmar la seña:', error)
     }
   }
 
@@ -152,14 +172,14 @@ export function DashboardPage() {
               isNext={currentTab === 'proximos'}
               onReschedule={handleRescheduleEvent}
               onCancel={handleCancelEvent}
-              onPayBalance={handlePayBalance}
+              onConfirmDeposit={handleConfirmDeposit}
             />
             <EventCards
               events={visible}
               isNext={currentTab === 'proximos'}
               onReschedule={handleRescheduleEvent}
               onCancel={handleCancelEvent}
-              onPayBalance={handlePayBalance}
+              onConfirmDeposit={handleConfirmDeposit}
             />
           </>
         )}

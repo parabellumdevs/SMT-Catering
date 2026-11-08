@@ -23,6 +23,7 @@ import { MIN_BOOKING_DAYS_ADVANCE } from '@/lib/constants'
 import { useEvents } from '@/features/dashboard/hooks/useEventsSummary'
 import { cn } from '@/lib/utils'
 import { useQuotationStore } from '@/stores/quotationStore'
+import { isDepositPending } from '@/features/dashboard/components/StatusBadges'
 
 const WEEKDAYS = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'] as const
 
@@ -40,10 +41,22 @@ export function AvailabilityCalendar() {
     eventDate ? parseISO(eventDate) : minBookingDate,
   )
 
-  const blockedDates = useMemo(
-    () => new Set(events.filter((e) => e.status !== 'Cancelado').map((e) => e.eventDate)),
-    [events],
-  )
+  const { blockedDates, pendingDates } = useMemo(() => {
+  const now = new Date()
+  const blocked = new Set<string>()
+  const pending = new Set<string>()
+  for (const e of events) {
+    if (e.cancelled || e.status === 'Cancelado') continue
+    if (isDepositPending(e.paymentStatus)) {
+      // Seña en validación: la fecha queda bloqueada solo hasta que vence el plazo (48 hs).
+      const expired = e.depositDueAt ? new Date(e.depositDueAt) <= now : false
+      if (expired) continue
+      pending.add(e.eventDate)
+    }
+    blocked.add(e.eventDate)
+  }
+  return { blockedDates: blocked, pendingDates: pending }
+}, [events])
 
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentMonth)
@@ -97,8 +110,8 @@ export function AvailabilityCalendar() {
           if (isTooSoon) {
             availabilityTitle = `Requiere ${MIN_BOOKING_DAYS_ADVANCE}d de anticipación`
           } else if (isBlocked) {
-            availabilityTitle = 'Ocupada'
-          } else if (isWrongWeekday) {
+            availabilityTitle = pendingDates.has(iso) ? 'Reservada, seña en validación' : 'Ocupada'
+          }else if (isWrongWeekday) {
             availabilityTitle = 'Solo viernes, sábados y domingos'
           }
 

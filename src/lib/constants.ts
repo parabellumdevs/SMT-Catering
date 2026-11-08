@@ -72,4 +72,14 @@ export const stationById = (id: EstacionId) => {
     pricePerGuestCents: s.precioPorComensalCentavos,
   }
 }
+
+export const BANK_DETAILS = {
+  accountName: 'SMT CATERING S.R.L.',
+  cbu: '0000003100012345678901',
+  alias: 'SMT.CATERING.CBBA',
+  bank: 'Banco Santander',
+}
+
 export type StationInfo = InfoEstacion
+
+export const DEPOSIT_HOLD_HOURS = 48

@@ -24,21 +24,31 @@ import type {
   CategoriaTarifa,
 } from "@shared/types/modelos";
 
-/** Estado de negocio del evento (equivalente a EstadoEvento del MER) */
+/** Estado de negocio del evento (re-exportado directamente de modelos.ts) */
 export type EventStatus = EstadoEvento;
 
-/** Estado de cobro (equivalente a EstadoPago del MER) */
+/** Estado de cobro (re-exportado directamente de modelos.ts) */
 export type PaymentStatus = EstadoPago;
+
+/** Estructura para observaciones alimentarias personalizadas con selector de cantidad */
+export interface CustomObservation {
+  id: string;
+  description: string;
+  count: number;
+}
 
 /** Restricciones alimentarias (formato frontend para cotizador rápido) */
 export interface DietaryRequirement {
   celiacos: number;
   vegetarianos: number;
   veganos: number;
+  hipertensos?: number;
   /** Descripción libre de alergias (ej. "frutos secos, mariscos"). */
   alergias: string;
   otrosDetalle?: string;
   otrosCantidad?: number;
+  /** Observaciones dinámicas adicionales con selector de cantidad */
+  customObservations?: CustomObservation[];
 }
 
 /** Estación culinaria */
@@ -49,6 +59,13 @@ export interface Station {
   pricePerGuestCents: number;
   description: string;
   imageUrl?: string;
+}
+
+export interface PaymentReceipt {
+  name: string;
+  mimeType: "application/pdf" | "image/jpeg" | "image/png" | string;
+  sizeBytes: number;
+  dataUrl: string;
 }
 
 /** Registro de evento / reserva en frontend */
@@ -67,6 +84,10 @@ export interface EventRecord {
   dietary: DietaryRequirement;
   /** Productos/observaciones críticas para cocina (sin precios). */
   kitchenNotes: string;
+    /** Comprobante de la transferencia de la seña, si el cliente pagó por transferencia. */
+  receipt?: PaymentReceipt;
+  /** Hasta cuándo la fecha queda bloqueada mientras la seña está pendiente (ISO timestamp). */
+  depositDueAt?: string;
 
   // Campos extendidos MER_v3
   startTime?: string;

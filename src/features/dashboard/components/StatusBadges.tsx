@@ -7,6 +7,7 @@ import type { EventStatus, PaymentStatus } from '@/types/domain'
  */
 const eventStatus: Record<string, { variant: BadgeVariant; label: string }> = {
   Presupuestado: { variant: 'neutral', label: 'Presupuestado' },
+  'Seña pendiente': { variant: 'warn', label: 'Seña pendiente' },
   'Señado / Confirmado': { variant: 'ok', label: 'Señado / Confirmado' },
   'En Producción': { variant: 'info', label: 'En Producción' },
   Completado: { variant: 'neutral', label: 'Completado' },
@@ -14,16 +15,23 @@ const eventStatus: Record<string, { variant: BadgeVariant; label: string }> = {
 }
 
 /**
- * Mapeo de variantes de diseño para los estados financieros de cobro (AGENTS.md).
- * Soporta estados simplificados y compatibilidad retroactiva con registros existentes en la BD.
+ * Estados de cobro. Valores canónicos: SEÑA_PENDIENTE, SALDO_PENDIENTE, SALDADO.
+ * El resto son alias de compatibilidad con registros existentes.
  */
 const paymentStatus: Record<string, { variant: BadgeVariant; label: string }> = {
+  SEÑA_PENDIENTE: { variant: 'warn', label: 'Seña pendiente' },
   SALDO_PENDIENTE: { variant: 'info', label: 'Saldo pendiente' },
   SALDADO: { variant: 'ok', label: 'Saldado' },
-  // Compatibilidad con registros existentes en PostgreSQL / migraciones previas
+  // Compatibilidad
+  'SEÑA PENDIENTE': { variant: 'warn', label: 'Seña pendiente' },
+  'SALDO PENDIENTE': { variant: 'info', label: 'Saldo pendiente' },
   SEÑA_ABONADA: { variant: 'info', label: 'Seña abonada' },
-  SEÑA_PENDIENTE: { variant: 'warn', label: 'Seña pendiente' },
   TOTALMENTE_SALDADO: { variant: 'ok', label: 'Saldado' },
+}
+
+/** ¿La seña todavía espera validación del administrador? (acepta ambas grafías) */
+export function isDepositPending(status?: string): boolean {
+  return status === 'SEÑA_PENDIENTE' || status === 'SEÑA PENDIENTE'
 }
 
 export function EventStatusBadge({ status }: { status?: EventStatus | string }) {

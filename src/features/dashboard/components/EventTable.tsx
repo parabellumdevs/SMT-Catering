@@ -11,20 +11,51 @@ import {
   THead as TableHead,
   TR as TableRow,
 } from '@/components/ui/table'
-import { PaymentStatusBadge } from '@/features/dashboard/components/StatusBadges'
+import { PaymentStatusBadge, isDepositPending } from '@/features/dashboard/components/StatusBadges'
 import { RescheduleEventDialog } from '@/features/dashboard/components/RescheduleEventDialog'
 import { PayBalanceDialog } from '@/features/dashboard/components/PayBalanceDialog'
 import { stationById } from '@/lib/constants'
 import { formatCurrency } from '@/lib/utils'
-import { useAuthStore } from '@/stores/authStore'
-import type { EventRecord } from '@/types/domain'
+import type { EventRecord, PaymentReceipt } from '@/types/domain'
 
 interface EventTableProps {
   readonly events: EventRecord[]
   readonly isNext?: boolean
   readonly onReschedule?: (eventId: string, newDate: string, newTime: string) => void
   readonly onCancel: (eventId: string) => void
-  readonly onPayBalance?: (eventId: string) => Promise<void> | void
+  /** Pasa el evento a confirmado y el pago a SALDO_PENDIENTE. */
+  readonly onConfirmDeposit?: (eventId: string) => void
+}
+
+/** Abre el comprobante (PDF o imagen) en una pestaña nueva. */
+function openReceipt(receipt: PaymentReceipt) {
+  const base64 = receipt.dataUrl.split(',')[1] ?? ''
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
+  const url = URL.createObjectURL(new Blob([bytes], { type: receipt.mimeType }))
+  window.open(url, '_blank')
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+function MoneyStatus({ event }: { readonly event: EventRecord }) {
+  const pending = isDepositPending(event.paymentStatus)
+  return (
+    <div className="space-y-1">
+      <span className="font-semibold text-gray-900 tnum block">
+        {formatCurrency(event.totalCents)}
+      </span>
+      <PaymentStatusBadge status={event.paymentStatus} />
+      {pending && (
+        <span className="text-xs text-gray-500 tnum block">
+          Seña a acreditar: {formatCurrency(event.depositCents)}
+        </span>
+      )}
+      {event.paymentStatus === 'SALDO_PENDIENTE' && (
+        <span className="text-xs text-gray-500 tnum block">
+          Saldo a abonar: {formatCurrency(event.totalCents - event.depositCents)}
+        </span>
+      )}
+    </div>
+  )
 }
 
 function formatEventDate(isoDate: string): string {
@@ -66,6 +97,7 @@ interface EventActionsProps {
   readonly onCancel: (eventId: string) => void
   readonly onPayBalance?: (event: EventRecord) => void
   readonly onClose: () => void
+  readonly onConfirmDeposit?: (eventId: string) => void
 }
 
 function EventActions({
@@ -77,10 +109,9 @@ function EventActions({
   onCancel,
   onPayBalance,
   onClose,
+  onConfirmDeposit,
 }: EventActionsProps) {
-  const role = useAuthStore((s) => s.user?.role)
-  const canPayBalance = role === 'admin' && event.paymentStatus === 'SALDO_PENDIENTE' && !event.cancelled
-
+  const pending = isDepositPending(event.paymentStatus)
   const positionClass = menuPosition === 'above'
     ? 'right-0 bottom-full mb-2'
     : 'right-0 mt-2'
@@ -119,6 +150,33 @@ function EventActions({
             <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />{' '}
             Ver Detalle
           </Link>
+          {pending && (
+            <>
+              <button
+                type="button"
+                disabled={!event.receipt}
+                title={event.receipt ? undefined : 'Este evento no tiene comprobante cargado'}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors font-medium text-left disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                onClick={() => {
+                  if (event.receipt) openReceipt(event.receipt)
+                  onClose()
+                }}
+              >
+                <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />{' '}
+                Ver comprobante
+              </button>
+              {onConfirmDeposit && (
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-emerald-700 hover:bg-emerald-50 transition-colors font-semibold text-left"
+                  onClick={() => { onConfirmDeposit(event.id); onClose() }}
+                >
+                  <span className="h-2 w-2 rounded-full bg-emerald-600 shrink-0" />{' '}
+                  Confirmar seña
+                </button>
+              )}
+            </>
+          )}
           <button
             type="button"
             className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors font-medium text-left"
@@ -159,7 +217,7 @@ function StationBadges({ event }: { readonly event: EventRecord }) {
   )
 }
 
-export function EventTable({ events, isNext = false, onReschedule, onCancel, onPayBalance }: EventTableProps) {
+export function EventTable({ events, isNext = false, onReschedule, onCancel, onConfirmDeposit }: EventTableProps) {
   const sortedEvents = useMemo(() => sortEvents(events, isNext), [events, isNext])
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [rescheduleEvent, setRescheduleEvent] = useState<EventRecord | null>(null)
@@ -197,12 +255,15 @@ export function EventTable({ events, isNext = false, onReschedule, onCancel, onP
             {sortedEvents.map((event, index) => {
               const isNearBottom = index >= sortedEvents.length - 2
               const currentMenuPosition = isNearBottom ? 'above' : 'below'
+              const pending = isDepositPending(event.paymentStatus)
+              // Se atenúa solo el contenido de los datos, no el menú de acciones.
+              const dim = pending ? 'opacity-60' : ''
               return (
               <TableRow
                 key={event.id}
-                className="hover:bg-gray-50/40 transition-colors border-b border-gray-100/60 last:border-0 relative"
+                className={`hover:bg-gray-50/40 transition-colors border-b border-gray-100/60 last:border-0 relative ${pending ? 'bg-gray-100/60' : ''}`}
               >
-                <TableCell className="whitespace-nowrap py-4 align-middle">
+                <TableCell className={`whitespace-nowrap py-4 align-middle ${dim}`}>
                   <div className="flex items-center gap-2.5">
                     <div className="p-2 rounded-lg bg-gray-100/80 text-brand">
                       <Calendar className="h-4 w-4" />
@@ -218,7 +279,7 @@ export function EventTable({ events, isNext = false, onReschedule, onCancel, onP
                   </div>
                 </TableCell>
 
-                <TableCell className="py-4 align-middle">
+                <TableCell className={`py-4 align-middle ${dim}`}>
                   <div>
                     <Link
                       to={`/comandas/${event.id}`}
@@ -230,26 +291,16 @@ export function EventTable({ events, isNext = false, onReschedule, onCancel, onP
                   </div>
                 </TableCell>
 
-                <TableCell className="py-4 align-middle">
+                <TableCell className={`py-4 align-middle ${dim}`}>
                   <span className="font-semibold text-gray-800 tnum">{event.guests} pax</span>
                 </TableCell>
 
-                <TableCell className="py-4 align-middle">
+                <TableCell className={`py-4 align-middle ${dim}`}>
                   <StationBadges event={event} />
                 </TableCell>
 
-                <TableCell className="py-4 align-middle">
-                  <div className="space-y-1">
-                    <span className="font-semibold text-gray-900 tnum block">
-                      {formatCurrency(event.totalCents)}
-                    </span>
-                    <PaymentStatusBadge status={event.paymentStatus} />
-                    {(event.paymentStatus === 'SALDO_PENDIENTE' ) && (
-                    <span className="text-xs text-gray-500 tnum block">
-                      Saldo: {formatCurrency(event.totalCents - event.depositCents)}
-                    </span>
-                  )}
-                  </div>
+                <TableCell className={`py-4 align-middle ${dim}`}>
+                  <MoneyStatus event={event} />
                 </TableCell>
 
                 {isNext && (
@@ -263,6 +314,7 @@ export function EventTable({ events, isNext = false, onReschedule, onCancel, onP
                       onPayBalance={handleOpenPayBalance}
                       onClose={() => setOpenMenuId(null)}
                       onCancel={() => onCancel(event.id)}
+                      onConfirmDeposit={onConfirmDeposit}
                     />
                   </TableCell>
                 )}
@@ -299,7 +351,7 @@ export function EventTable({ events, isNext = false, onReschedule, onCancel, onP
 }
 
 /** Tarjetas para móvil (<768px). */
-export function EventCards({ events, isNext = false, onReschedule, onCancel, onPayBalance }: EventTableProps) {
+export function EventCards({ events, isNext = false, onReschedule, onCancel, onConfirmDeposit }: EventTableProps) {
   const sortedEvents = useMemo(() => sortEvents(events, isNext), [events, isNext])
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [rescheduleEvent, setRescheduleEvent] = useState<EventRecord | null>(null)
@@ -318,12 +370,15 @@ export function EventCards({ events, isNext = false, onReschedule, onCancel, onP
   return (
     <>
       <div className="space-y-4 md:hidden">
-        {sortedEvents.map((event) => (
+        {sortedEvents.map((event) => {
+          const pending = isDepositPending(event.paymentStatus)
+          const dim = pending ? 'opacity-60' : ''
+          return (
           <div
             key={event.id}
-            className="rounded-xl border border-gray-200 bg-white border-t-4 border-t-brand p-4 shadow-xs space-y-3 relative"
+            className={`rounded-xl border border-gray-200 border-t-4 border-t-brand p-4 shadow-xs space-y-3 relative ${pending ? 'bg-gray-100/60' : 'bg-white'}`}
           >
-            <div className="flex items-start justify-between gap-2 border-b border-gray-100 pb-2.5">
+            <div className={`flex items-start justify-between gap-2 border-b border-gray-100 pb-2.5 ${dim}`}>
               <div>
                 <span className="text-[10px] font-mono font-bold text-brand bg-brand/10 px-2 py-0.5 rounded mb-1 inline-block">
                   {event.id}
@@ -342,19 +397,31 @@ export function EventCards({ events, isNext = false, onReschedule, onCancel, onP
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-sm">
+            <div className={`flex items-center justify-between text-sm ${dim}`}>
               <span className="text-gray-600 font-medium">{event.guests} comensales</span>
               <span className="font-semibold text-gray-900 tnum">
                 {formatCurrency(event.totalCents)}
               </span>
             </div>
 
-            <div className="py-1">
+            <div className={`py-1 ${dim}`}>
               <StationBadges event={event} />
             </div>
 
             <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-              <PaymentStatusBadge status={event.paymentStatus} />
+              <div className={dim}>
+                <PaymentStatusBadge status={event.paymentStatus} />
+                {pending && (
+                  <span className="mt-1 block text-xs text-gray-500 tnum">
+                    Seña a acreditar: {formatCurrency(event.depositCents)}
+                  </span>
+                )}
+                {event.paymentStatus === 'SALDO_PENDIENTE' && (
+                  <span className="mt-1 block text-xs text-gray-500 tnum">
+                    Saldo a abonar: {formatCurrency(event.totalCents - event.depositCents)}
+                  </span>
+                )}
+              </div>
               {isNext && (
                 <EventActions
                   event={event}
@@ -365,11 +432,13 @@ export function EventCards({ events, isNext = false, onReschedule, onCancel, onP
                   onPayBalance={handleOpenPayBalance}
                   onClose={() => setOpenMenuId(null)}
                   onCancel={() => onCancel(event.id)}
+                  onConfirmDeposit={onConfirmDeposit}
                 />
               )}
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {rescheduleEvent && (

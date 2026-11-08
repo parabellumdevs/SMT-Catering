@@ -11,6 +11,7 @@ import type { EventRecord, EventStatus, PaymentStatus } from "@/types/domain";
  * - Mantiene sincronizado el estado reactivo entre `DashboardPage`, `ComandasPage` y cotizador.
  * - `addEvent`: persiste la reserva vía `POST /api/events` y actualiza el store.
  * - `updateStatus`: actualiza estado de evento y cobro vía `PATCH /api/events/:id`.
+ *   La confirmación de seña es `updateStatus(id, 'Señado / Confirmado', 'SALDO_PENDIENTE')`.
  */
 interface EventStoreState {
   events: EventRecord[];
@@ -72,7 +73,12 @@ export const useEventStore = create<EventStoreState>()((set, get) => ({
       .then((res) => {
         if (res?.event) {
           set((s) => ({
-            events: s.events.map((e) => (e.id === nextId ? res.event : e)),
+            events: s.events.map((e) =>
+              e.id === nextId
+                ? // Si el backend todavía no devuelve el comprobante, se conserva el local.
+                  { ...res.event, receipt: res.event.receipt ?? newRecord.receipt }
+                : e,
+            ),
           }));
         }
       })
