@@ -110,13 +110,13 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - [x] Campo en frontend ([`QuotationPage.tsx`](../src/features/quotation/QuotationPage.tsx)) para ingresar dirección del evento ([`LocationField.tsx`](../src/features/quotation/components/LocationField.tsx)).
   - [x] Validación de distancia dentro del radio operativo de **20 km a la redonda** desde el punto base establecido (**Monserrat, Venezuela 1478, CABA**) con cálculo Haversine y autocompletado OSM ([`shared/geo.ts`](../shared/geo.ts), [`src/lib/geocoding.ts`](../src/lib/geocoding.ts)).
 - [ ] **Selector de Islas / Estaciones y Menú Oficial**
-  - [ ] Actualizar en [`src/lib/constants.ts`](../src/lib/constants.ts) y [`server/db/seed.sql`](../server/db/seed.sql) las descripciones de las **5 estaciones gastronómicas** según el menú oficial del cliente:
+  - [X] Actualizar en [`src/lib/constants.ts`](../src/lib/constants.ts) y [`server/db/seed.sql`](../server/db/seed.sql) las descripciones de las **5 estaciones gastronómicas** según el menú oficial del cliente:
     1. **Estación Entradas:** Tabla de quesos (Parmesano, Gouda, Roquefort), Tabla de fiambres (Jamón crudo, Jamón cocido, Salame de colonia) y Brochettes (Caprese y mixtos de pollo/vegetales).
     2. **Estación Pastas:** Ñoquis de papa y Sorrentinos de jamón y queso, con dos opciones de salsa (Fileto clásica y Salsa Parisienne).
     3. **Estación Parrilla:** Asado banderita de ternera, Mini chorizos bombón, Pollo asado, aderezos y carbón/leña proporcional por comensal.
     4. **Estación Asiática:** Wok de verduras de estación (sola y opción con pollo) y Sushi rolls variados (Salmon Roll, Veggie Roll y Philadelphia).
     5. **Estación Dulce:** 5 variedades de shots de postres (Chocotorta, Lemon Pie, Cheesecake de frutos rojos, Mousse de chocolate y Oreotorta).
-  - [ ] Incorporar imágenes ilustrativas de alta calidad para cada una de las estaciones gastronómicas en [`StationSelector.tsx`](../src/features/quotation/components/StationSelector.tsx).
+  - [X] Incorporar imágenes ilustrativas de alta calidad para cada una de las estaciones gastronómicas en [`StationSelector.tsx`](../src/features/quotation/components/StationSelector.tsx).
 - [x] **Adicionales**
   - [x] Eliminar la opción "Mantelería" y "Cubiertos" de los ítems adicionales disponibles, dejando únicamente **Barra de tragos (Barra libre)** opcional por comensal.
 - [ ] **Restricciones Alimentarias**

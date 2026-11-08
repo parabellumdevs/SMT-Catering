@@ -46,11 +46,11 @@ export interface InfoEstacion {
 
 // Catálogo oficial de estaciones culinarias
 export const ESTACIONES_GASTRONOMICAS: InfoEstacion[] = [
-  { id: 'entradas', nombre: 'Entradas', precioPorComensalCentavos: 350000, descripcion: 'Tabla de fiambres, bruschettas y verrinas' },
-  { id: 'pastas', nombre: 'Pastas', precioPorComensalCentavos: 520000, descripcion: 'Ravioles de ricota, ñoquis de papa y salsa a elección' },
-  { id: 'parrilla', nombre: 'Parrilla', precioPorComensalCentavos: 610000, descripcion: 'Bife de chorizo, cordero y verduras asadas' },
-  { id: 'asiatica', nombre: 'Cocina Asiática', precioPorComensalCentavos: 570000, descripcion: 'Rollitos, wok de vegetales y arroz jazmín' },
-  { id: 'dulce', nombre: 'Estación Dulce', precioPorComensalCentavos: 280000, descripcion: 'Petit fours, flan y mini madalenas' },
+  { id: 'entradas', nombre: 'Entradas', precioPorComensalCentavos: 350000, descripcion: 'Tabla de quesos (Parmesano, Gouda, Roquefort), Tabla de fiambres (Jamón crudo, Jamón cocido, Salame de colonia) y Brochettes (Caprese y mixtos de pollo/vegetales).' },
+  { id: 'pastas', nombre: 'Pastas', precioPorComensalCentavos: 520000, descripcion: 'Ñoquis de papa y Sorrentinos de jamón y queso, con dos opciones de salsa (Fileto clásica y Salsa Parisienne).' },
+  { id: 'parrilla', nombre: 'Parrilla', precioPorComensalCentavos: 610000, descripcion: 'Asado banderita de ternera, Mini chorizos bombón, Pollo asado, aderezos y carbón/leña proporcional por comensal.' },
+  { id: 'asiatica', nombre: 'Cocina Asiática', precioPorComensalCentavos: 570000, descripcion: 'Wok de verduras de estación (sola y opción con pollo) y Sushi rolls variados (Salmon Roll, Veggie Roll y Philadelphia).' },
+  { id: 'dulce', nombre: 'Estación Dulce', precioPorComensalCentavos: 280000, descripcion: '5 variedades de shots de postres (Chocotorta, Lemon Pie, Cheesecake de frutos rojos, Mousse de chocolate y Oreotorta).' },
 ]
 
 export function obtenerEstacionPorId(id: EstacionId): InfoEstacion {
