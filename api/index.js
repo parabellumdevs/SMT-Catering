@@ -538,7 +538,7 @@ var EventsService = class {
         }
         let depositPesos = 0;
         for (const p of pagos) {
-          if (p.tipo_pago === "SE\xD1A" || p.tipo_pago === "TOTAL") {
+          if (p.tipo_pago === "SE\xD1A" || p.tipo_pago === "TOTAL" || p.tipo_pago === "SALDO") {
             depositPesos += Number(p.monto) || 0;
           }
         }
@@ -703,6 +703,31 @@ var EventsService = class {
         idReserva
       ]
     );
+    if (updates.paymentStatus === "SALDADO") {
+      const res = await dbClient.queryOne(
+        `SELECT monto_total FROM reserva WHERE id_reserva = ?`,
+        [idReserva]
+      );
+      if (res) {
+        const montoTotal = Number(res.monto_total) || 0;
+        const pagosRows = await dbClient.query(
+          `SELECT monto FROM pago WHERE id_reserva = ? AND estado = 'confirmado'`,
+          [idReserva]
+        );
+        let yaAbonado = 0;
+        for (const p of pagosRows) {
+          yaAbonado += Number(p.monto) || 0;
+        }
+        const saldoRemanente = Math.max(0, montoTotal - yaAbonado);
+        if (saldoRemanente > 0) {
+          await dbClient.execute(
+            `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [idReserva, "SALDO", saldoRemanente, 1, 1, "confirmado"]
+          );
+        }
+      }
+    }
   }
 };
 
@@ -731,7 +756,17 @@ var EventsController = class {
         res.status(400).json({ error: "ID de reserva requerido" });
         return;
       }
-      await EventsService.updateEvent(id, req.body || {});
+      const updates = req.body || {};
+      if (updates.paymentStatus === "SALDADO") {
+        if (req.user?.role !== "admin") {
+          res.status(403).json({ error: "Solo los administradores pueden registrar cobros de saldo." });
+          return;
+        }
+      } else if (req.user?.role !== "admin" && req.user?.role !== "superadmin") {
+        res.status(403).json({ error: "No autorizado para modificar eventos." });
+        return;
+      }
+      await EventsService.updateEvent(id, updates);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -758,7 +793,7 @@ var EventsController = class {
 var eventsRouter = createRouter();
 eventsRouter.get("/", EventsController.list);
 eventsRouter.post("/", EventsController.create);
-eventsRouter.patch("/:id", EventsController.update);
+eventsRouter.patch("/:id", authGuard, EventsController.update);
 eventsRouter.get("/my-events", EventsController.myEvents);
 
 // server/modules/quotation/quotation.service.ts
