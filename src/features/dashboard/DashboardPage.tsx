@@ -49,7 +49,7 @@ export function DashboardPage() {
     }
   }
 
-    const handleCancelEvent = async (
+  const handleCancelEvent = async (
     eventId: string,
   ) => {
     try {
@@ -59,6 +59,20 @@ export function DashboardPage() {
       await refetch()
     } catch (error) {
       console.error('Fallo en la cancelacion:', error)
+    }
+  }
+
+  const handlePayBalance = async (
+    eventId: string,
+  ) => {
+    try {
+      await api.patch(`/api/events/${eventId}`, {
+        paymentStatus: 'SALDADO',
+      })
+      await refetch()
+    } catch (error) {
+      console.error('Fallo en el registro de saldo:', error)
+      throw error
     }
   }
 
@@ -138,13 +152,14 @@ export function DashboardPage() {
               isNext={currentTab === 'proximos'}
               onReschedule={handleRescheduleEvent}
               onCancel={handleCancelEvent}
+              onPayBalance={handlePayBalance}
             />
             <EventCards
               events={visible}
               isNext={currentTab === 'proximos'}
               onReschedule={handleRescheduleEvent}
               onCancel={handleCancelEvent}
-
+              onPayBalance={handlePayBalance}
             />
           </>
         )}
