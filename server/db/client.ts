@@ -1,9 +1,15 @@
 /**
  * Cliente de Base de Datos PostgreSQL (Neon) para SMT Catering.
- * Conexión centralizada asíncrona mediante pg.Pool.
+ * Conexión centralizada asíncrona mediante pg.Pool y fallback HTTP.
  */
 import 'dotenv/config'
+import dns from 'node:dns'
 import pg from 'pg'
+
+// Priorizar IPv4 para evitar cuelgues por ENETUNREACH en redes sin soporte IPv6 nativo
+try {
+  dns.setDefaultResultOrder('ipv4first')
+} catch {}
 
 const { Pool, types } = pg
 
@@ -28,6 +34,88 @@ export const pool = new Pool({
   },
 })
 
+const isNeon = Boolean(connectionString && connectionString.includes('neon.tech'))
+let useHttpTransport = false
+
+// En desarrollo local fuera de Vercel, probar si el puerto 5432 está bloqueado por el ISP/router
+// Si está bloqueado, activar de inmediato el transporte HTTPS oficial de Neon (puerto 443)
+if (isNeon && process.env.VERCEL !== '1') {
+  import('node:net').then(({ default: net }) => {
+    try {
+      const parsed = new URL(connectionString!)
+      const socket = net.connect(5432, parsed.hostname, () => {
+        socket.destroy()
+      })
+      socket.setTimeout(1200, () => {
+        useHttpTransport = true
+        socket.destroy()
+      })
+      socket.on('error', () => {
+        useHttpTransport = true
+      })
+    } catch {
+      useHttpTransport = true
+    }
+  }).catch(() => {})
+}
+
+async function queryNeonHttp(
+  pgSql: string,
+  params: any[] = [],
+): Promise<{ rows: any[]; rowCount: number }> {
+  const parsed = new URL(connectionString!)
+  const endpoint = `https://${parsed.hostname}/sql`
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Neon-Connection-String': connectionString!,
+    },
+    body: JSON.stringify({ query: pgSql, params }),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`Neon HTTP API Error (${res.status}): ${errText}`)
+  }
+
+  const data: any = await res.json()
+  return {
+    rows: (data.rows as any[]) || [],
+    rowCount: data.rowCount ?? data.rows?.length ?? 0,
+  }
+}
+
+async function executeRawQuery(
+  pgSql: string,
+  params: any[] = [],
+): Promise<{ rows: any[]; rowCount: number }> {
+  if (useHttpTransport && isNeon && connectionString) {
+    return queryNeonHttp(pgSql, params)
+  }
+
+  try {
+    const res = await pool.query(pgSql, params)
+    return {
+      rows: res.rows,
+      rowCount: res.rowCount ?? res.rows.length,
+    }
+  } catch (err: any) {
+    if (
+      isNeon &&
+      connectionString &&
+      (err.code === 'ETIMEDOUT' ||
+        err.message?.includes('ETIMEDOUT') ||
+        err.message?.includes('timeout') ||
+        err.message?.includes('connect'))
+    ) {
+      useHttpTransport = true
+      return queryNeonHttp(pgSql, params)
+    }
+    throw err
+  }
+}
+
 /**
  * Convierte placeholders posicionales tipo SQLite (?) a sintaxis PostgreSQL ($1, $2, ...)
  */
@@ -47,7 +135,7 @@ export const db = {
    */
   async query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
     const pgSql = convertPlaceholders(sql)
-    const res = await pool.query(pgSql, params)
+    const res = await executeRawQuery(pgSql, params)
     return res.rows as T[]
   },
 
@@ -78,7 +166,7 @@ export const db = {
       pgSql += ' RETURNING *'
     }
 
-    const res = await pool.query(pgSql, params)
+    const res = await executeRawQuery(pgSql, params)
     const firstRow = res.rows[0]
     let lastInsertId: number | undefined
 
@@ -113,7 +201,8 @@ export const db = {
    * Ejecuta sentencias DDL (CREATE TABLE, ALTER, etc.)
    */
   async exec(sql: string): Promise<void> {
-    await pool.query(sql)
+    const pgSql = convertPlaceholders(sql)
+    await executeRawQuery(pgSql)
   },
 
   getPool(): pg.Pool {
