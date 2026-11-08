@@ -35,6 +35,7 @@ export interface DietaryRequirement {
   celiacos: number;
   vegetarianos: number;
   veganos: number;
+  hipertensos: number;
   /** Descripción libre de alergias (ej. "frutos secos, mariscos"). */
   alergias: string;
   otrosDetalle?: string;

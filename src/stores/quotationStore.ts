@@ -57,7 +57,7 @@ const initialState = {
   rangeWarning: false,
   stationIds: ["entradas", "pastas"] as StationId[],
   extraIds: [] as string[],
-  dietary: { celiacos: 0, vegetarianos: 0, veganos: 0, alergias: "" },
+  dietary: { celiacos: 0, vegetarianos: 0, veganos: 0, hipertensos:0, alergias: "" },
   locationAddress: "",
   locationPoint: null as GeoPoint | null,
   locationDistanceKm: null as number | null,

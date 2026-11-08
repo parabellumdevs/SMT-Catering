@@ -76,6 +76,21 @@ export function DietaryMatrix() {
             onChange={(e) => handleCountChange('veganos', Number(e.target.value))}
           />
         </div>
+
+        {/* Hipertensos */}
+        <div className="space-y-2">
+          <Label htmlFor="hipertensos" className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
+            Hipertensos
+          </Label>
+          <Input
+            id="hipertensos"
+            type="number"
+            min={0}
+            className="h-11 tnum"
+            value={dietary.hipertensos}
+            onChange={(e) => handleCountChange('hipertensos', Number(e.target.value))}
+          />
+        </div>
       </div>
 
       {/* Alergias y Observaciones */}
