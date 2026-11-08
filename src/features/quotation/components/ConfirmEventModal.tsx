@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { addDays, addHours, isBefore, parseISO, startOfDay } from 'date-fns'
-import { AlertCircle, CalendarCheck, Check, CheckCircle2, Copy, FileText, Upload, X } from 'lucide-react'
+import { AlertCircle, CalendarCheck, Check, CheckCircle2, Copy, FileText, Trash2, Upload, X } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -91,6 +91,13 @@ export function ConfirmEventModal({ open, onOpenChange, paymentMethodLabel }: Pr
     setReceiptFile(file)
   }
 
+  const handleRemoveReceipt = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setReceiptFile(null)
+    setReceiptError(null)
+  }
+
   const isSubmitDisabled =
     submitting || !clientField.value.trim() || !eventDate || isTooSoon || (isTransfer && !receiptFile)
 
@@ -109,8 +116,6 @@ export function ConfirmEventModal({ open, onOpenChange, paymentMethodLabel }: Pr
           }
         : undefined
 
-      // El cliente nunca marca la seña como abonada: con transferencia queda pendiente
-      // hasta que el administrador la confirme.
       const paymentStatus: PaymentStatus = isTransfer ? 'SEÑA_PENDIENTE' : 'SALDO_PENDIENTE'
 
       const newRecord = addEvent({
@@ -121,14 +126,12 @@ export function ConfirmEventModal({ open, onOpenChange, paymentMethodLabel }: Pr
         status: isTransfer ? 'Seña pendiente' : 'Señado / Confirmado',
         paymentStatus,
         totalCents,
-        // Se guarda siempre el monto de la seña esperada (50%), para no perder cuánto se espera cobrar.
         depositCents,
         insuranceCents,
         dietary,
         kitchenNotes: kitchenNotes.trim(),
         cancelled: false,
         receipt,
-        // La fecha queda bloqueada DEPOSIT_HOLD_HOURS mientras se valida la seña.
         depositDueAt: isTransfer ? addHours(new Date(), DEPOSIT_HOLD_HOURS).toISOString() : undefined,
       })
       setCreatedEventId(newRecord.id)
@@ -281,7 +284,7 @@ export function ConfirmEventModal({ open, onOpenChange, paymentMethodLabel }: Pr
                       </div>
                     </div>
 
-                    {/* Subir comprobante */}
+                    {/* Subir / Eliminar comprobante */}
                     <div className="space-y-1.5 border-t border-hairline pt-2">
                       <Label htmlFor="receipt-upload" className="block text-xs font-medium text-ink">
                         Comprobante de la transferencia (PDF, JPG o PNG, máx. {RECEIPT_MAX_LABEL}) *
@@ -295,25 +298,39 @@ export function ConfirmEventModal({ open, onOpenChange, paymentMethodLabel }: Pr
                         className="hidden"
                       />
 
-                      <label
-                        htmlFor="receipt-upload"
-                        className="flex h-10 w-full cursor-pointer items-center justify-between rounded-md border border-dashed border-hairline bg-canvas px-3 text-xs text-ink-mute transition-colors hover:border-primary"
-                      >
-                        {receiptFile ? (
-                          <div className="flex items-center gap-2 truncate font-medium text-ink">
-                            <FileText className="h-4 w-4 shrink-0 text-primary" />
-                            <span className="truncate">{receiptFile.name}</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-ink-mute">
-                            <Upload className="h-4 w-4 shrink-0" />
-                            <span>Seleccionar comprobante...</span>
-                          </div>
+                      <div className="flex items-center gap-2">
+                        <label
+                          htmlFor="receipt-upload"
+                          className="flex h-10 flex-1 cursor-pointer items-center justify-between rounded-md border border-dashed border-hairline bg-canvas px-3 text-xs text-ink-mute transition-colors hover:border-primary"
+                        >
+                          {receiptFile ? (
+                            <div className="flex items-center gap-2 truncate font-medium text-ink">
+                              <FileText className="h-4 w-4 shrink-0 text-primary" />
+                              <span className="truncate">{receiptFile.name}</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 text-ink-mute">
+                              <Upload className="h-4 w-4 shrink-0" />
+                              <span>Seleccionar comprobante...</span>
+                            </div>
+                          )}
+                          <span className="shrink-0 rounded bg-canvas-soft px-2 py-0.5 text-[10px] font-semibold text-ink">
+                            {receiptFile ? 'Cambiar' : 'Examinar'}
+                          </span>
+                        </label>
+
+                        {receiptFile && (
+                          <button
+                            type="button"
+                            onClick={handleRemoveReceipt}
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-hairline bg-canvas text-state-danger hover:bg-rose-50 hover:border-rose-200 transition-colors"
+                            title="Eliminar comprobante"
+                            aria-label="Eliminar comprobante"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         )}
-                        <span className="shrink-0 rounded bg-canvas-soft px-2 py-0.5 text-[10px] font-semibold text-ink">
-                          {receiptFile ? 'Cambiar' : 'Examinar'}
-                        </span>
-                      </label>
+                      </div>
 
                       {receiptError && (
                         <p role="alert" className="text-xs text-state-danger">{receiptError}</p>
