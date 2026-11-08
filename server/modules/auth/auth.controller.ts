@@ -80,8 +80,8 @@ export class AuthController {
 
   static async resetPassword(req: Request, res: Response): Promise<void> {
     try {
-      const { token, newPass, confirmPass } = req.body || {}
-      await AuthService.resetPassword(token, newPass, confirmPass)
+      const { email, token, newPass, confirmPass } = req.body || {}
+      await AuthService.resetPassword(email, token, newPass, confirmPass)
       res.json({ success: true })
     } catch (error: any) {
       res.status(400).json({ error: error.message })

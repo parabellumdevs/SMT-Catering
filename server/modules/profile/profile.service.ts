@@ -7,6 +7,15 @@ export class ProfileService {
     const cliente = await dbClient.queryOne('SELECT * FROM cliente WHERE id_cliente = ?', [clientId])
     if (!cliente) throw new Error('NOT_FOUND: Cliente no encontrado')
 
+    let fechaAniversario = ''
+    if (cliente.fecha_aniversario) {
+      if (cliente.fecha_aniversario instanceof Date) {
+        fechaAniversario = cliente.fecha_aniversario.toISOString().slice(0, 10)
+      } else {
+        fechaAniversario = String(cliente.fecha_aniversario).slice(0, 10)
+      }
+    }
+
     return {
       razonSocial: cliente.razon_social || '',
       cuit: cliente.cuit || '',
@@ -15,6 +24,7 @@ export class ProfileService {
       email: cliente.email || '',
       telefono: cliente.telefono || '',
       direccionLegal: cliente.direccion_legal || '',
+      fechaAniversario,
     }
   }
 
@@ -29,6 +39,7 @@ export class ProfileService {
     const email = (body.email || cliente.email || '').trim().toLowerCase()
     const telefono = (body.telefono ?? cliente.telefono ?? '').trim()
     const direccionLegal = (body.direccionLegal ?? cliente.direccion_legal ?? '').trim()
+    const fechaAniversario = (body.fechaAniversario ?? cliente.fecha_aniversario ?? '').trim()
 
     if (!razonSocial || !nombreCompleto || !email) {
       throw new Error('Razón social, nombre del responsable y email son obligatorios')
@@ -53,7 +64,8 @@ export class ProfileService {
          cargo_responsable = ?,
          email = ?,
          telefono = ?,
-         direccion_legal = ?
+         direccion_legal = ?,
+         fecha_aniversario = ?
        WHERE id_cliente = ?`,
       [
         razonSocial,
@@ -62,6 +74,7 @@ export class ProfileService {
         email,
         telefono || null,
         direccionLegal || null,
+        fechaAniversario || null,
         cliente.id_cliente,
       ],
     )
@@ -74,6 +87,7 @@ export class ProfileService {
       email,
       telefono,
       direccionLegal,
+      fechaAniversario,
     }
   }
 

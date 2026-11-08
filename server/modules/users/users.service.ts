@@ -154,6 +154,10 @@ export class UsersService {
     const telefono = body.telefono !== undefined ? String(body.telefono).trim() : existing.telefono
     const direccionLegal =
       body.direccionLegal !== undefined ? String(body.direccionLegal).trim() : existing.direccion_legal
+    const fechaAniversario =
+      body.fechaAniversario !== undefined
+        ? (body.fechaAniversario ? String(body.fechaAniversario).trim() : null)
+        : existing.fecha_aniversario
     const activo = body.activo !== undefined ? (Number(body.activo) === 0 ? 0 : 1) : existing.activo
 
     if (email !== existing.email.toLowerCase()) {
@@ -174,7 +178,7 @@ export class UsersService {
 
     await dbClient.execute(
       `UPDATE cliente
-       SET razon_social = ?, cuit = ?, nombre_completo = ?, cargo_responsable = ?, email = ?, telefono = ?, direccion_legal = ?, password_hash = ?, activo = ?
+       SET razon_social = ?, cuit = ?, nombre_completo = ?, cargo_responsable = ?, email = ?, telefono = ?, direccion_legal = ?, fecha_aniversario = ?, password_hash = ?, activo = ?
        WHERE id_cliente = ?`,
       [
         razonSocial,
@@ -184,6 +188,7 @@ export class UsersService {
         email,
         telefono,
         direccionLegal,
+        fechaAniversario,
         newPasswordHash,
         activo,
         targetId,
