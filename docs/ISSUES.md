@@ -85,7 +85,7 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
 - [x] **Registro de Nuevos Usuarios (`cliente` B2B)**
   - [x] Definir esquema de validación Zod ([`shared/schemas/auth.schema.ts`](../shared/schemas/auth.schema.ts)) y endpoint backend (`POST /api/auth/register`).
   - [x] Implementar vista de registro integrada en [`src/features/login/RegisterForm.tsx`](../src/features/login/RegisterForm.tsx) (evolucionada desde el `RegisterModal` inicial) con asignación automática del rol `cliente`.
-  - [ ] Agregar campos del `MER_v3` y RF-01 en el formulario de registro B2B: **Fecha de aniversario/fundación de la empresa (`fecha_aniversario`)** y **Dirección legal (`direccion_legal`)**.
+  - [x] Agregar campos del `MER_v3` y RF-01 en el formulario de registro B2B: **Fecha de aniversario/fundación de la empresa (`fecha_aniversario`)** y **Dirección legal (`direccion_legal`)**.
 - [x] **Acceso Total de Superadmin**
   - [x] Permitir al `superadmin` acceder a toda la plataforma con permisos integrales, gestión de usuarios en `/usuarios` y navegación completa.
 
@@ -97,7 +97,7 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - [x] Incorporar ícono de engranaje (ruedita) en la barra de navegación para el rol `cliente`.
 - [x] **Gestión de Datos Personales y de Empresa**
   - [x] Pantalla [`ProfilePage.tsx`](../src/features/profile/ProfilePage.tsx) para visualización y actualización de información de contacto (razón social, CUIT de solo lectura, nombre del responsable, cargo, email, teléfono y dirección legal).
-  - [ ] Incorporar visualización y edición del campo **Fecha de aniversario de la empresa (`fecha_aniversario`)** en [`ProfilePage.tsx`](../src/features/profile/ProfilePage.tsx).
+  - [x] Incorporar visualización y edición del campo **Fecha de aniversario de la empresa (`fecha_aniversario`)** en [`ProfilePage.tsx`](../src/features/profile/ProfilePage.tsx).
 - [x] **Cambio de Contraseña**
   - [x] Formulario de actualización de contraseña con validación de contraseña actual y nueva contraseña (`POST /api/client/change-password`).
 

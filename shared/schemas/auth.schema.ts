@@ -16,6 +16,8 @@ export const registerSchema = z
     cargoResponsable: z.string().optional(),
     email: z.string().email('Email inválido'),
     telefono: z.string().optional(),
+    direccionLegal: z.string().max(100, 'La dirección legal no puede superar los 100 caracteres').optional(),
+    fechaAniversario: z.string().optional(),
     pass: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
     confirmPass: z.string().min(6, 'Confirmá la contraseña'),
   })
@@ -30,7 +32,8 @@ export const forgotPasswordSchema = z.object({
 
 export const resetPasswordSchema = z
   .object({
-    token: z.string().min(1, 'El token es requerido'),
+    email: z.string().email('Ingresá un email válido'),
+    token: z.string().regex(/^\d{6}$/, 'El código debe tener 6 dígitos'),
     newPass: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
     confirmPass: z.string().min(6, 'Confirmá la contraseña'),
   })
