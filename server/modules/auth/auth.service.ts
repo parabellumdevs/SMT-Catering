@@ -1,6 +1,7 @@
 import { getDatabase } from '../../db/client.ts'
 import { hashPassword, verifyPassword } from '../../lib/passwords.ts'
 import { signJwt } from '../../lib/jwt.ts'
+import { sendPasswordResetEmail } from '../../lib/mailer.ts'
 import type { AuthenticatedUser } from '../../types/http.ts'
 
 export interface LoginResult {
@@ -94,6 +95,8 @@ export class AuthService {
     cargoResponsable?: string
     email: string
     telefono?: string
+    direccionLegal?: string
+    fechaAniversario?: string
     pass: string
   }): Promise<{ user: AuthenticatedUser; token: string }> {
     const dbClient = getDatabase()
@@ -103,6 +106,8 @@ export class AuthService {
     const cargoResponsable = (data.cargoResponsable || '').trim()
     const email = (data.email || '').trim().toLowerCase()
     const telefono = (data.telefono || '').trim()
+    const direccionLegal = (data.direccionLegal || '').trim()
+    const fechaAniversario = (data.fechaAniversario || '').trim()
     const pass = data.pass || ''
 
     if (!razonSocial || razonSocial.length < 3) throw new Error('La razón social es requerida')
@@ -119,9 +124,19 @@ export class AuthService {
 
     const passHash = hashPassword(pass)
     const result = await dbClient.execute(
-      `INSERT INTO cliente (razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, password_hash)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [razonSocial, cuit, nombreCompleto, cargoResponsable || null, email, telefono || null, passHash],
+      `INSERT INTO cliente (razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, direccion_legal, fecha_aniversario, password_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        razonSocial,
+        cuit,
+        nombreCompleto,
+        cargoResponsable || null,
+        email,
+        telefono || null,
+        direccionLegal || null,
+        fechaAniversario || null,
+        passHash,
+      ],
     )
 
     const idCliente = Number(result.lastInsertId)
@@ -160,12 +175,9 @@ export class AuthService {
       return
     }
 
-    const raw =
-      Date.now().toString(36) +
-      Math.random().toString(36).slice(2) +
-      Math.random().toString(36).slice(2)
-    const token = raw.slice(0, 40).padEnd(40, '0')
-    const expiresAt = Date.now() + 60 * 60 * 1000
+    // Código de verificación numérico de 6 dígitos válido por 10 minutos
+    const token = Math.floor(100000 + Math.random() * 900000).toString()
+    const expiresAt = Date.now() + 10 * 60 * 1000
 
     await dbClient.execute('DELETE FROM password_reset_tokens WHERE email = ?', [email])
     await dbClient.execute(
@@ -174,24 +186,31 @@ export class AuthService {
       [email, token, expiresAt],
     )
 
-    console.log(`\n🔑 [RESET PASSWORD] Token para ${email}: ${token}\n`)
+    await sendPasswordResetEmail(email, token)
   }
 
-  static async resetPassword(tokenInput: string, newPass: string, confirmPass: string): Promise<void> {
+  static async resetPassword(
+    emailInput: string,
+    tokenInput: string,
+    newPass: string,
+    confirmPass: string,
+  ): Promise<void> {
     const dbClient = getDatabase()
+    const emailParam = (emailInput || '').trim().toLowerCase()
     const token = (tokenInput || '').trim()
 
-    if (!token || token.length !== 40) throw new Error('Token inválido')
+    if (!emailParam || !emailParam.includes('@')) throw new Error('Email inválido')
+    if (!/^\d{6}$/.test(token)) throw new Error('Código de verificación inválido')
     if (newPass.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres')
     if (newPass !== confirmPass) throw new Error('Las contraseñas no coinciden')
 
     const row = await dbClient.queryOne(
-      'SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0',
-      [token],
+      'SELECT * FROM password_reset_tokens WHERE LOWER(email) = ? AND token = ? AND used = 0',
+      [emailParam, token],
     )
     if (!row) throw new Error('Token inválido o ya utilizado')
     if (Date.now() > Number(row.expires_at)) {
-      await dbClient.execute('DELETE FROM password_reset_tokens WHERE token = ?', [token])
+      await dbClient.execute('DELETE FROM password_reset_tokens WHERE LOWER(email) = ? AND token = ?', [emailParam, token])
       throw new Error('El token expiró. Solicitá uno nuevo.')
     }
 
@@ -208,6 +227,9 @@ export class AuthService {
       ])
     }
 
-    await dbClient.execute('UPDATE password_reset_tokens SET used = 1 WHERE token = ?', [token])
+    await dbClient.execute('UPDATE password_reset_tokens SET used = 1 WHERE LOWER(email) = ? AND token = ?', [
+      emailParam,
+      token,
+    ])
   }
 }

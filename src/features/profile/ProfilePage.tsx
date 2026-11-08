@@ -9,7 +9,7 @@
  * Patrón visual: Cards con elevación sutil sobre canvas-soft, alineado a DESIGN.md.
  */
 import { useState, useEffect, type FormEvent } from 'react'
-import { Save, Lock, AlertCircle, CheckCircle2, Building2, ShieldCheck } from 'lucide-react'
+import { Save, Lock, AlertCircle, CheckCircle2, Building2, ShieldCheck, Calendar } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,6 +26,7 @@ interface ClientProfile {
   email: string
   telefono: string
   direccionLegal: string
+  fechaAniversario?: string
 }
 
 interface StatusMessageProps {
@@ -61,6 +62,7 @@ export function ProfilePage() {
     email: '',
     telefono: '',
     direccionLegal: '',
+    fechaAniversario: '',
   })
   const [loadingProfile, setLoadingProfile] = useState(true)
   const [savingProfile, setSavingProfile] = useState(false)
@@ -102,6 +104,7 @@ export function ProfilePage() {
         email: profile.email.trim(),
         telefono: profile.telefono.trim(),
         direccionLegal: profile.direccionLegal.trim(),
+        fechaAniversario: profile.fechaAniversario?.trim() || undefined,
       })
 
       if (res?.profile) {
@@ -282,6 +285,27 @@ export function ProfilePage() {
                   }}
                   placeholder="Av. Leandro N. Alem 1000, CABA"
                 />
+              </div>
+
+              {/* Fecha de Aniversario / Fundación */}
+              <div className="space-y-1.5">
+                <Label htmlFor="prof-aniversario">Fecha de aniversario o fundación</Label>
+                <div className="relative">
+                  <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-mute" />
+                  <Input
+                    id="prof-aniversario"
+                    type="date"
+                    className="pl-10"
+                    value={profile.fechaAniversario || ''}
+                    onChange={(e) => {
+                      setProfile((p) => ({ ...p, fechaAniversario: e.target.value }))
+                      setProfileMsg(null)
+                    }}
+                  />
+                </div>
+                <p className="text-[11px] text-ink-mute">
+                  Permite acceder a promociones o beneficios exclusivos de aniversario empresarial.
+                </p>
               </div>
 
               <StatusMessage msg={profileMsg} />
