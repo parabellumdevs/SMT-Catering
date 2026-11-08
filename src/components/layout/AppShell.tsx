@@ -1,9 +1,10 @@
 import * as React from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { LogOut, Settings } from 'lucide-react'
 
 import { GradientMesh } from '@/components/layout/GradientMesh'
 import { navItems, useNavLinkClass } from '@/components/layout/nav-items'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { useAuthStore } from '@/stores/authStore'
 import { cn } from '@/lib/utils'
 
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils'
  * <768px: bottom navigation bar persistente (móvil)
  */
 export function AppShell() {
+  const location = useLocation()
   const linkClass = useNavLinkClass()
   const navigate = useNavigate()
   const logout = useAuthStore((s) => s.logout)
@@ -130,7 +132,9 @@ export function AppShell() {
         </header>
 
         <main className="mx-auto w-full max-w-[1440px] px-4 py-6 md:px-8">
-          <Outlet />
+          <ErrorBoundary resetKeys={[location.pathname]}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
 
