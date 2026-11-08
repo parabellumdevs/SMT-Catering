@@ -56,7 +56,12 @@ function createRouter() {
 
 // server/db/client.ts
 import "dotenv/config";
+import dns from "node:dns";
 import pg from "pg";
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch {
+}
 var { Pool, types } = pg;
 types.setTypeParser(1082, (val) => val);
 types.setTypeParser(1700, (val) => val === null ? null : parseFloat(val));
@@ -72,6 +77,67 @@ var pool = new Pool({
     rejectUnauthorized: false
   }
 });
+var isNeon = Boolean(connectionString && connectionString.includes("neon.tech"));
+var useHttpTransport = false;
+if (isNeon && process.env.VERCEL !== "1") {
+  import("node:net").then(({ default: net }) => {
+    try {
+      const parsed = new URL(connectionString);
+      const socket = net.connect(5432, parsed.hostname, () => {
+        socket.destroy();
+      });
+      socket.setTimeout(1200, () => {
+        useHttpTransport = true;
+        socket.destroy();
+      });
+      socket.on("error", () => {
+        useHttpTransport = true;
+      });
+    } catch {
+      useHttpTransport = true;
+    }
+  }).catch(() => {
+  });
+}
+async function queryNeonHttp(pgSql, params = []) {
+  const parsed = new URL(connectionString);
+  const endpoint = `https://${parsed.hostname}/sql`;
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Neon-Connection-String": connectionString
+    },
+    body: JSON.stringify({ query: pgSql, params })
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Neon HTTP API Error (${res.status}): ${errText}`);
+  }
+  const data = await res.json();
+  return {
+    rows: data.rows || [],
+    rowCount: data.rowCount ?? data.rows?.length ?? 0
+  };
+}
+async function executeRawQuery(pgSql, params = []) {
+  if (useHttpTransport && isNeon && connectionString) {
+    return queryNeonHttp(pgSql, params);
+  }
+  try {
+    const res = await pool.query(pgSql, params);
+    return {
+      rows: res.rows,
+      rowCount: res.rowCount ?? res.rows.length
+    };
+  } catch (err) {
+    if (isNeon && connectionString && (err.code === "ETIMEDOUT" || err.message?.includes("ETIMEDOUT") || err.message?.includes("timeout") || err.message?.includes("connect"))) {
+      useHttpTransport = true;
+      return queryNeonHttp(pgSql, params);
+    }
+    throw err;
+  }
+}
 function convertPlaceholders(sql) {
   let paramIndex = 1;
   return sql.replace(/\?/g, () => `$${paramIndex++}`);
@@ -82,7 +148,7 @@ var db = {
    */
   async query(sql, params = []) {
     const pgSql = convertPlaceholders(sql);
-    const res = await pool.query(pgSql, params);
+    const res = await executeRawQuery(pgSql, params);
     return res.rows;
   },
   /**
@@ -102,7 +168,7 @@ var db = {
     if (isInsert && !/RETURNING/i.test(pgSql)) {
       pgSql += " RETURNING *";
     }
-    const res = await pool.query(pgSql, params);
+    const res = await executeRawQuery(pgSql, params);
     const firstRow = res.rows[0];
     let lastInsertId;
     if (firstRow) {
@@ -123,7 +189,8 @@ var db = {
    * Ejecuta sentencias DDL (CREATE TABLE, ALTER, etc.)
    */
   async exec(sql) {
-    await pool.query(sql);
+    const pgSql = convertPlaceholders(sql);
+    await executeRawQuery(pgSql);
   },
   getPool() {
     return pool;
@@ -549,7 +616,7 @@ var EventsService = class {
           guests: r.cantidad_invitados,
           stationIds: stations,
           status: r.estado_evento || "Presupuestado",
-          paymentStatus: r.estado_pago || "-",
+          paymentStatus: r.estado_pago || "SALDO_PENDIENTE",
           totalCents: Math.round((Number(r.monto_total) || 0) * 100),
           depositCents: Math.round(depositPesos * 100),
           dietary: {

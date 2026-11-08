@@ -68,7 +68,7 @@ export class EventsService {
           guests: r.cantidad_invitados,
           stationIds: stations,
           status: r.estado_evento || "Presupuestado",
-          paymentStatus: r.estado_pago || "-",
+          paymentStatus: r.estado_pago || "SALDO_PENDIENTE",
           totalCents: Math.round((Number(r.monto_total) || 0) * 100),
           depositCents: Math.round(depositPesos * 100),
           dietary: {
