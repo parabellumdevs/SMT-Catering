@@ -30,7 +30,7 @@ export type EventStatus = EstadoEvento;
 /** Estado de cobro (equivalente a EstadoPago del MER) */
 export type PaymentStatus = EstadoPago;
 
-/** Observaciones alimentarias personalizadas con selector de cantidad */
+/** Estructura para observaciones alimentarias personalizadas con selector de cantidad */
 export interface CustomObservation {
   id: string;
   description: string;
@@ -47,7 +47,7 @@ export interface DietaryRequirement {
   alergias: string;
   otrosDetalle?: string;
   otrosCantidad?: number;
-  /** Observaciones dinámicas con selector de cantidad */
+  /** Observaciones dinámicas adicionales con selector de cantidad */
   customObservations?: CustomObservation[];
 }
 

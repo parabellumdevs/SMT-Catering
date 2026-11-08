@@ -121,8 +121,8 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - [x] Eliminar la opción "Mantelería" y "Cubiertos" de los ítems adicionales disponibles, dejando únicamente **Barra de tragos (Barra libre)** opcional por comensal.
 - [ ] **Restricciones Alimentarias**
   - [x] Tipado de modelo para `"Otros"` con detalle y cantidad ([`shared/types/events.ts`](../shared/types/events.ts)).
-  - [ ] Revisar y agregar restricciones faltantes en [`DietaryMatrix.tsx`](../src/features/quotation/components/DietaryMatrix.tsx): agregar **"Sin sal (Hipertensión)"** y permitir agregar restricciones personalizadas (**"Otros"**) indicando descripción y cantidad exacta de comensales.
-  - [ ] Persistir y recuperar en el backend todas las categorías de restricciones alimentarias, validando que la suma no supere el total de invitados.
+  - [X] Revisar y agregar restricciones faltantes en [`DietaryMatrix.tsx`](../src/features/quotation/components/DietaryMatrix.tsx): agregar **"Sin sal (Hipertensión)"** y permitir agregar restricciones personalizadas (**"Otros"**) indicando descripción y cantidad exacta de comensales.
+  - [X] Persistir y recuperar en el backend todas las categorías de restricciones alimentarias, validando que la suma no supere el total de invitados.
 - [ ] **Fecha del Evento, Horarios & Disponibilidad**
   - [x] Definir reglas de validación en esquema Zod ([`shared/schemas/quotation.schema.ts`](../shared/schemas/quotation.schema.ts)) y servicio de cotización.
   - [x] Restringir la selección de fechas en el calendario exclusivamente a días **viernes, sábados y domingos** ([`AvailabilityCalendar.tsx`](../src/features/quotation/components/AvailabilityCalendar.tsx)).

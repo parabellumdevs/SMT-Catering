@@ -2,23 +2,32 @@ import { AlertCircle, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useQuotationStore } from '@/stores/quotationStore'
+import { useQuotationStore, getDietaryTotal } from '@/stores/quotationStore'
 
 export function DietaryMatrix() {
   const guests = useQuotationStore((s) => s.guests)
   const dietary = useQuotationStore((s) => s.dietary)
   const setDietary = useQuotationStore((s) => s.setDietary)
-  
+
   const customObservations = dietary.customObservations || []
   const addCustomObservation = useQuotationStore((s) => s.addCustomObservation)
   const updateCustomObservation = useQuotationStore((s) => s.updateCustomObservation)
   const removeCustomObservation = useQuotationStore((s) => s.removeCustomObservation)
 
-  const handleCountChange = (field: keyof Omit<typeof dietary, 'alergias' | 'customObservations' | 'otrosDetalle' | 'otrosCantidad'>, value: number) => {
-    const clampedValue = Math.max(0, Math.min(value, guests))
+  const totalDietaryCount = getDietaryTotal(dietary)
+
+  // Helper para obtener la cantidad máxima permitida por campo en tiempo real
+  const getAvailableMax = (currentValue: number) => {
+    const otherSelectionsTotal = totalDietaryCount - currentValue
+    return Math.max(0, guests - otherSelectionsTotal)
+  }
+
+  const handleCountChange = (
+    field: 'celiacos' | 'vegetarianos' | 'veganos' | 'hipertensos',
+    value: number
+  ) => {
     setDietary({
-      ...dietary,
-      [field]: clampedValue,
+      [field]: value,
     })
   }
 
@@ -29,7 +38,12 @@ export function DietaryMatrix() {
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#581c25] text-xs font-bold text-white">
           3
         </span>
-        <h2 className="text-lg font-semibold text-ink">Restricciones & Requerimientos Dietéticos</h2>
+        <div className="flex-1 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-ink">Restricciones & Requerimientos Dietéticos</h2>
+          <span className="text-xs text-ink-mute font-medium tnum">
+            Asignados: <strong className="text-ink">{totalDietaryCount}</strong> / {guests} comensales
+          </span>
+        </div>
       </div>
 
       {/* Grid con las 4 restricciones fijas (incluye Hipertensos) */}
@@ -43,7 +57,7 @@ export function DietaryMatrix() {
             id="celiacos"
             type="number"
             min={0}
-            max={guests}
+            max={getAvailableMax(dietary.celiacos || 0)}
             className="h-11 tnum"
             value={dietary.celiacos ?? 0}
             onChange={(e) => handleCountChange('celiacos', Number(e.target.value))}
@@ -59,7 +73,7 @@ export function DietaryMatrix() {
             id="vegetarianos"
             type="number"
             min={0}
-            max={guests}
+            max={getAvailableMax(dietary.vegetarianos || 0)}
             className="h-11 tnum"
             value={dietary.vegetarianos ?? 0}
             onChange={(e) => handleCountChange('vegetarianos', Number(e.target.value))}
@@ -75,7 +89,7 @@ export function DietaryMatrix() {
             id="veganos"
             type="number"
             min={0}
-            max={guests}
+            max={getAvailableMax(dietary.veganos || 0)}
             className="h-11 tnum"
             value={dietary.veganos ?? 0}
             onChange={(e) => handleCountChange('veganos', Number(e.target.value))}
@@ -91,7 +105,7 @@ export function DietaryMatrix() {
             id="hipertensos"
             type="number"
             min={0}
-            max={guests}
+            max={getAvailableMax(dietary.hipertensos || 0)}
             className="h-11 tnum"
             value={dietary.hipertensos ?? 0}
             onChange={(e) => handleCountChange('hipertensos', Number(e.target.value))}
@@ -124,7 +138,7 @@ export function DietaryMatrix() {
                 <Input
                   type="number"
                   min={0}
-                  max={guests}
+                  max={getAvailableMax(obs.count || 0)}
                   className="h-11 tnum text-center"
                   value={obs.count ?? 0}
                   onChange={(e) =>
@@ -140,7 +154,7 @@ export function DietaryMatrix() {
                   variant="ghost"
                   size="sm"
                   onClick={() => removeCustomObservation(obs.id)}
-                  className="h-11 w-11 text-ink-mute hover:text-red-600 shrink-0"
+                  className="h-11 w-11 p-0 text-ink-mute hover:text-red-600 shrink-0 flex items-center justify-center"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
