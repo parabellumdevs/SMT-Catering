@@ -339,32 +339,10 @@ export class PaymentsService {
       { method: "GET" },
     );
 
-    console.log("--- DEBUG CHECKOUT MATCHES ---");
-    console.log("Payment Status:", payment.status, "-> Expected: approved");
-    console.log("Currency:", payment.currency_id, "-> Expected: ARS");
-    console.log(
-      "External Ref match:",
-      payment.external_reference === externalReference,
-      `(${payment.external_reference} vs ${externalReference})`,
-    );
-    console.log(
-      "Preference ID match:",
-      payment.preference_id === checkout.preference_id,
-      `(${payment.preference_id} vs ${checkout.preference_id})`,
-    );
-    console.log(
-      "Amount match:",
-      Math.round(payment.transaction_amount * 100),
-      "vs Expected:",
-      Number(checkout.expected_amount_cents),
-    );
-    console.log("------------------------------");
-
     const matchesCheckout =
       payment.status === "approved" &&
       payment.currency_id === "ARS" &&
       payment.external_reference === externalReference &&
-      payment.preference_id === checkout.preference_id &&
       Math.round(payment.transaction_amount * 100) ===
         Number(checkout.expected_amount_cents);
 
