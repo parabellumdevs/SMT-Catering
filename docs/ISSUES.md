@@ -102,7 +102,7 @@ Documento maestro de seguimiento de tareas completadas (incluyendo los hitos de 
 - [ ] **Validación de Ubicación y Radio de Cobertura (20 km)**
   - [x] Definir regla de distancia máxima $\le 20\text{ km}$ en esquema Zod ([`shared/schemas/quotation.schema.ts`](../shared/schemas/quotation.schema.ts)) y columna `distancia_km` en base de datos.
   - [X] Campo en frontend ([`QuotationPage.tsx`](../src/features/quotation/QuotationPage.tsx)) para ingresar dirección del evento.
-  - [ ] Validación de distancia dentro del radio operativo de **20 km a la redonda** desde el punto base establecido (**Monserrat, Venezuela 1478, CABA**).
+  - [X] Validación de distancia dentro del radio operativo de **20 km a la redonda** desde el punto base establecido (**Monserrat, Venezuela 1478, CABA**).
 - [ ] **Selector de Islas / Estaciones y Menú Oficial**
   - [ ] Actualizar en [`src/lib/constants.ts`](../src/lib/constants.ts) y [`server/db/seed.sql`](../server/db/seed.sql) las descripciones de las **5 estaciones gastronómicas** según el menú oficial del cliente:
     1. **Estación Entradas:** Tabla de quesos (Parmesano, Gouda, Roquefort), Tabla de fiambres (Jamón crudo, Jamón cocido, Salame de colonia) y Brochettes (Caprese y mixtos de pollo/vegetales).
