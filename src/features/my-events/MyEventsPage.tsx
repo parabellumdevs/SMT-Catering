@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   AlertCircle,
   CalendarCheck,
@@ -32,11 +32,15 @@ type FilterTab = 'todos' | 'proximos' | 'pasados'
  * comprobantes oficiales en PDF, pago de saldo, reprogramación y cancelación.
  */
 export function MyEventsPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [events, setEvents] = useState<EventRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<FilterTab>('todos')
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [paymentReturnMessage, setPaymentReturnMessage] = useState<string | null>(null)
+  const hasHandledPaymentReturn = useRef(false)
 
   // Modales
   const [detailEvent, setDetailEvent] = useState<EventRecord | null>(null)
@@ -65,6 +69,54 @@ export function MyEventsPage() {
   useEffect(() => {
     fetchMyEvents()
   }, [fetchMyEvents])
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const paymentStatus = params.get('mp_balance')
+    if (!paymentStatus || hasHandledPaymentReturn.current) return
+
+    hasHandledPaymentReturn.current = true
+    const paymentId = params.get('payment_id') || params.get('collection_id')
+    const externalReference = params.get('external_reference')
+
+    const processReturn = async () => {
+      if (paymentStatus !== 'success') {
+        await fetchMyEvents()
+        setPaymentReturnMessage(
+          paymentStatus === 'pending'
+            ? 'Mercado Pago dejó el pago pendiente. El evento no se actualizará hasta que el pago quede aprobado.'
+            : 'El pago no fue aprobado. El evento conserva su saldo pendiente.',
+        )
+      } else if (!paymentId || !externalReference) {
+        await fetchMyEvents()
+        setPaymentReturnMessage(
+          'No se pudieron validar los datos de retorno del pago. Actualizá tus eventos o contactá a soporte.',
+        )
+      } else {
+        try {
+          const result = await api.post<{ eventId: string }>(
+            '/api/payments/balance/confirm',
+            { paymentId, externalReference },
+          )
+          await fetchMyEvents()
+          setSuccessMessage(
+            `¡El pago del saldo restante para el evento ${result.eventId} se registró con éxito! El estado se actualizó a SALDADO.`,
+          )
+          setTimeout(() => setSuccessMessage(null), 6000)
+        } catch (err: unknown) {
+          const message = err instanceof Error
+            ? err.message
+            : 'No se pudo confirmar el pago. Actualizá tus eventos o contactá a soporte.'
+          setPaymentReturnMessage(message)
+          await fetchMyEvents()
+        }
+      }
+
+      navigate(location.pathname, { replace: true })
+    }
+
+    void processReturn()
+  }, [fetchMyEvents, location.pathname, location.search, navigate])
 
   // Filtrado de eventos según la pestaña activa
   const [today] = useState(() => startOfDay(new Date()))
@@ -126,12 +178,6 @@ export function MyEventsPage() {
   }, [events, today])
 
   // Handlers para las acciones exitosas
-  const handlePaymentSuccess = (eventId: string) => {
-    setSuccessMessage(`¡El pago del saldo restante para el evento ${eventId} se registró con éxito! El estado se actualizó a SALDADO.`)
-    fetchMyEvents()
-    setTimeout(() => setSuccessMessage(null), 6000)
-  }
-
   const handleRescheduleSuccess = (eventId: string, newDate: string, newTime: string) => {
     setSuccessMessage(`La reserva ${eventId} ha sido reprogramada exitosamente para el ${newDate} a las ${newTime} hs.`)
     fetchMyEvents()
@@ -179,6 +225,20 @@ export function MyEventsPage() {
           </Button>
         </div>
       </header>
+
+      {paymentReturnMessage && (
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-sm shadow-xs">
+          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1 leading-relaxed">{paymentReturnMessage}</div>
+          <button
+            type="button"
+            onClick={() => setPaymentReturnMessage(null)}
+            className="text-amber-700 hover:text-amber-900 text-xs font-semibold"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
 
       {/* Banner de Feedback Positivo */}
       {successMessage && (
@@ -348,7 +408,6 @@ export function MyEventsPage() {
         event={payEvent}
         open={Boolean(payEvent)}
         onOpenChange={(open) => !open && setPayEvent(null)}
-        onPaymentSuccess={handlePaymentSuccess}
       />
 
       <ClientRescheduleModal
