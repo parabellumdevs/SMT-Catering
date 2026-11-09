@@ -1040,12 +1040,44 @@ eventsRouter.post("/", EventsController.create);
 eventsRouter.patch("/:id", authGuard, EventsController.update);
 eventsRouter.get("/my-events", EventsController.myEvents);
 
+// shared/schemas/quotation.schema.ts
+import { z } from "zod";
+var GUEST_MIN = 50;
+var GUEST_MAX = 120;
+var CONCURRENT_GUEST_MAX = 60;
+var MAX_EVENT_DURATION_HOURS = 3;
+var MAX_DISTANCE_KM = 20;
+var quotationFormSchema = z.object({
+  guests: z.number().min(GUEST_MIN, `El m\xEDnimo es de ${GUEST_MIN} comensales`).max(GUEST_MAX, `El m\xE1ximo es de ${GUEST_MAX} comensales`),
+  stationIds: z.array(z.string()).min(1, "Debe seleccionar al menos 1 estaci\xF3n culinaria"),
+  eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato de fecha inv\xE1lido (YYYY-MM-DD)"),
+  startTime: z.string().regex(/^(19|20|21):[0-5][0-9]$/, "El inicio debe ser entre las 19:00 y las 21:00 hs"),
+  endTime: z.string().regex(/^(20|21|22|23):[0-5][0-9]|00:00$/, "La finalizaci\xF3n no puede exceder las 00:00 hs"),
+  durationHours: z.number().min(1).max(MAX_EVENT_DURATION_HOURS, `La duraci\xF3n m\xE1xima es de ${MAX_EVENT_DURATION_HOURS} horas`),
+  locationAddress: z.string().min(5, "La direcci\xF3n del evento es requerida"),
+  distanceKm: z.number().max(MAX_DISTANCE_KM, `La distancia m\xE1xima de cobertura es de ${MAX_DISTANCE_KM} km`),
+  dietary: z.object({
+    celiacos: z.number().min(0).default(0),
+    vegetarianos: z.number().min(0).default(0),
+    veganos: z.number().min(0).default(0),
+    hipertensos: z.number().min(0).default(0),
+    alergias: z.string().default(""),
+    otrosDetalle: z.string().optional(),
+    otrosCantidad: z.number().min(0).optional()
+  }),
+  paymentOption: z.enum(["deposit_50", "full_100"])
+});
+
 // server/modules/quotation/quotation.service.ts
 var QuotationService = class {
-  static async checkAvailability(date) {
+  static async checkAvailability(date, requestedGuests) {
     const dbClient = getDatabase();
     const result = await dbClient.queryOne(
-      "SELECT count(*) as count, sum(cantidad_invitados) as total_guests FROM reserva WHERE fecha_evento = ? AND evento_cancelado = 0",
+      `SELECT count(*) as count, sum(cantidad_invitados) as total_guests
+       FROM reserva
+       WHERE fecha_evento = ?
+         AND evento_cancelado = 0
+         AND (estado_evento IS NULL OR estado_evento <> 'Cancelado')`,
       [date]
     );
     const count = Number(result?.count || 0);
@@ -1053,7 +1085,7 @@ var QuotationService = class {
     if (count === 0) {
       return { available: true, isConcurrent: false };
     }
-    if (count === 1 && totalGuests <= 60) {
+    if (count === 1 && totalGuests <= CONCURRENT_GUEST_MAX && (requestedGuests === void 0 || requestedGuests > 0 && requestedGuests <= CONCURRENT_GUEST_MAX)) {
       return { available: true, isConcurrent: true };
     }
     return { available: false, isConcurrent: false };
@@ -1092,11 +1124,18 @@ var QuotationController = class {
   static async checkDate(req, res) {
     try {
       const date = req.query.date;
+      const guests = req.query.guests === void 0 ? void 0 : Number(req.query.guests);
       if (!date) {
         res.status(400).json({ error: "Par\xE1metro date es requerido" });
         return;
       }
-      const result = await QuotationService.checkAvailability(date);
+      if (guests !== void 0 && (!Number.isInteger(guests) || guests < GUEST_MIN || guests > GUEST_MAX)) {
+        res.status(400).json({
+          error: `Par\xE1metro guests debe estar entre ${GUEST_MIN} y ${GUEST_MAX}`
+        });
+        return;
+      }
+      const result = await QuotationService.checkAvailability(date, guests);
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: error.message });
