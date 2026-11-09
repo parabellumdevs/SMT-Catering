@@ -4,10 +4,12 @@
  * Estructura de rutas:
  *  - /login → LoginPage (pública, sin AppShell).
  *  - / → Cotizador (protegida, dentro de AppShell).
+ *  - /mis-eventos → Mis Eventos (protegida, solo rol cliente).
  *  - /dashboard → Dashboard admin (protegida).
  *  - /comandas → Listado de comandas (protegida).
  *  - /comandas/:eventId → Detalle de comanda (protegida).
  *  - /tarifas → Gestión de tarifas (protegida).
+ *  - /usuarios → Directorio de usuarios (protegida, admin/superadmin).
  *  - /perfil → Perfil del cliente (protegida, solo rol cliente).
  *
  * Guardia de autenticación y autorización (RBAC):
@@ -18,18 +20,19 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import type { UserRole } from '@shared/types/roles'
 
 import { AppShell } from '@/components/layout/AppShell'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { LoginPage } from '@/features/login/LoginPage'
+import { MyEventsPage } from '@/features/my-events/MyEventsPage'
 import { QuotationPage } from '@/features/quotation/QuotationPage'
 import { ComandaDetailPage, ComandaListPage } from '@/features/production/ComandasPage'
 import { PricingPage } from '@/features/pricing/PricingPage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
 import { UsersPage } from '@/features/users/UsersPage'
 import { useAuthStore } from '@/stores/authStore'
-import type { UserRole } from '@shared/types/roles'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -95,6 +98,14 @@ export default function App() {
                   element={
                     <RoleRoute allowedRoles={['cliente', 'admin', 'superadmin']}>
                       <QuotationPage />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="mis-eventos"
+                  element={
+                    <RoleRoute allowedRoles={['cliente']}>
+                      <MyEventsPage />
                     </RoleRoute>
                   }
                 />

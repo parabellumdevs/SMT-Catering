@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import {
+  CalendarCheck,
   CalendarDays,
   ChefHat,
   Calculator,
@@ -25,6 +26,12 @@ export const navItems: NavItem[] = [
     icon: Calculator,
     end: true,
     roles: ["superadmin", "admin", "cliente"],
+  },
+  {
+    to: "/mis-eventos",
+    label: "Mis Eventos",
+    icon: CalendarCheck,
+    roles: ["cliente"],
   },
   {
     to: "/dashboard",
