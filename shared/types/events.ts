@@ -15,6 +15,7 @@ export interface DietaryRequirement {
   celiacos: number;
   vegetarianos: number;
   veganos: number;
+  hipertensos?: number;
   alergias: string;
   otrosDetalle?: string;
   otrosCantidad?: number;

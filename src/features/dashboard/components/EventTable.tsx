@@ -142,8 +142,10 @@ function EventActions({
 }
 
 function StationBadges({ event }: { readonly event: EventRecord }) {
-  const stations = event.stationIds?.map((id) => stationById(id).name)
-    ?? ['Entrada', 'Parrilla', 'Dulce']
+  const selectedIds = [...(event.stationIds ?? []), ...(event.extraIds ?? [])]
+  const stations = selectedIds.length > 0
+    ? selectedIds.map((id) => stationById(id).name)
+    : ['Entrada', 'Parrilla', 'Dulce']
 
   return (
     <div className="flex flex-wrap gap-1.5">

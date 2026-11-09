@@ -21,6 +21,9 @@ function formatEventRestrictions(event: EventRecord): string {
   if (dietary.veganos > 0) {
     parts.push(dietary.veganos === 1 ? '1 vegano' : `${dietary.veganos} veganos`)
   }
+  if (dietary.hipertensos > 0) {
+    parts.push(dietary.hipertensos === 1 ? '1 hipertenso' : `${dietary.hipertensos} hipertensos`)
+  }
   if (dietary.alergias) {
     parts.push(`alergias: ${dietary.alergias}`)
   }
@@ -38,12 +41,13 @@ function formatShortTime(timeStr?: string): string {
 }
 
 
-export function ComandaTicket({ event }: { event: EventRecord }) {
+export function ComandaTicket({ event }: { readonly event: EventRecord }) {
   const { dietary } = event
   const hasRestrictions =
     (dietary.celiacos && dietary.celiacos > 0) ||
     (dietary.vegetarianos && dietary.vegetarianos > 0) ||
     (dietary.veganos && dietary.veganos > 0) ||
+    (dietary.hipertensos && dietary.hipertensos > 0) ||
     !!dietary.alergias ||
     !!event.kitchenNotes
 
