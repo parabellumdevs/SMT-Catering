@@ -34,11 +34,11 @@ SELECT setval('cliente_id_cliente_seq', (SELECT MAX(id_cliente) FROM cliente));
 
 -- 3. ESTACIONES GASTRONOMICAS
 INSERT INTO estacion (id_estacion, codigo, nombre, tipo_comida, descripcion, precio_por_persona) VALUES
-  (1, 'entradas', 'Entradas', 'salado', 'Tabla de fiambres, bruschettas y verrinas', 3500.00),
-  (2, 'pastas', 'Pastas', 'salado', 'Ravioles de ricota, ñoquis de papa y salsa a elección', 5200.00),
-  (3, 'parrilla', 'Parrilla', 'salado', 'Bife de chorizo, cordero y verduras asadas', 6100.00),
-  (4, 'asiatica', 'Cocina Asiática', 'salado', 'Rollitos, wok de vegetales y arroz jazmín', 5700.00),
-  (5, 'dulce', 'Estación Dulce', 'dulce', 'Petit fours, flan y mini madalenas', 2800.00)
+  (1, 'entradas', 'Entradas', 'salado', 'Tabla de quesos (Parmesano, Gouda, Roquefort), Tabla de fiambres (Jamón crudo, Jamón cocido, Salame de colonia) y Brochettes (Caprese y mixtos de pollo/vegetales).', 3500.00),
+  (2, 'pastas', 'Pastas', 'salado', 'Ñoquis de papa y Sorrentinos de jamón y queso, con dos opciones de salsa (Fileto clásica y Salsa Parisienne).', 5200.00),
+  (3, 'parrilla', 'Parrilla', 'salado', 'Asado banderita de ternera, Mini chorizos bombón, Pollo asado, aderezos y carbón/leña proporcional por comensal.', 6100.00),
+  (4, 'asiatica', 'Cocina Asiática', 'salado', 'Wok de verduras de estación (sola y opción con pollo) y Sushi rolls variados (Salmon Roll, Veggie Roll y Philadelphia).', 5700.00),
+  (5, 'dulce', 'Estación Dulce', 'dulce', '5 variedades de shots de postres (Chocotorta, Lemon Pie, Cheesecake de frutos rojos, Mousse de chocolate y Oreotorta).', 2800.00)
 ON CONFLICT (id_estacion) DO UPDATE SET
   codigo = EXCLUDED.codigo,
   nombre = EXCLUDED.nombre,

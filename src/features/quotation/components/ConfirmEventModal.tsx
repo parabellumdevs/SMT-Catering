@@ -16,6 +16,7 @@ import { useEventStore } from '@/stores/eventStore'
 import { useQuotationStore } from '@/stores/quotationStore'
 import { api } from '@/lib/api'
 import type { EventRecord, PaymentStatus } from '@/types/domain'
+import type { GeoPoint } from '@shared/geo'
 
 const PENDING_CHECKOUT_KEY = 'smt-pending-mercado-pago-checkout'
 
@@ -25,6 +26,7 @@ type CheckoutEventData = Omit<EventRecord, 'id'> & { extraIds: string[] }
 interface PendingCheckout {
   eventData: CheckoutEventData
   initialPayment: InitialPayment
+  locationPoint?: GeoPoint
   externalReference?: string
   paymentId?: string
 }
@@ -54,13 +56,14 @@ export function ConfirmEventModal({
   const dietary = useQuotationStore((s) => s.dietary)
   const startTime = useQuotationStore((s) => s.startTime)
   const locationAddress = useQuotationStore((s) => s.locationAddress)
+  const locationPoint = useQuotationStore((s) => s.locationPoint)
   const locationDistanceKm = useQuotationStore((s) => s.locationDistanceKm)
   const resetQuotation = useQuotationStore((s) => s.reset)
   const { totalCents, depositCents, insuranceCents } = useQuotationCalculator()
   const addEvent = useEventStore((s) => s.addEvent)
   const fetchEvents = useEventStore((s) => s.fetchEvents)
 
-  const clientField = useClientCompanyField(open)
+  const clientField = useClientCompanyField()
   const [kitchenNotes, setKitchenNotes] = useState('')
   const [initialPayment, setInitialPayment] = useState<InitialPayment>('deposit')
   const [createdEventId, setCreatedEventId] = useState<string | null>(null)
@@ -99,6 +102,10 @@ export function ConfirmEventModal({
   const isTooSoon = Boolean(
     eventDate && isBefore(parseISO(eventDate), addDays(today, MIN_BOOKING_DAYS_ADVANCE)),
   )
+  const hasValidLocation = locationPoint !== null && locationDistanceKm !== null
+  const hasApprovedPendingCheckout = Boolean(
+    pendingCheckout?.paymentId && pendingCheckout.externalReference,
+  )
   const initialCents = initialPayment === 'full' ? totalCents : depositCents
   const paymentStatus: PaymentStatus = initialPayment === 'full' ? 'SALDADO' : 'SALDO_PENDIENTE'
   let submitLabel = `Pagar seña (${DEPOSIT_PERCENT}%) y confirmar`
@@ -108,6 +115,14 @@ export function ConfirmEventModal({
     submitLabel = 'Reintentar confirmación'
   } else if (initialPayment === 'full') {
     submitLabel = 'Pagar total y confirmar'
+  }
+  let companyFieldHint: string | undefined
+  if (clientField.isLoading) {
+    companyFieldHint = 'Cargando datos de tu empresa…'
+  } else if (clientField.hasLoadError) {
+    companyFieldHint = 'No se pudieron cargar los datos. Completá el nombre manualmente.'
+  } else if (clientField.isAutoCompleted) {
+    companyFieldHint = 'Autocompletado desde tu perfil de empresa'
   }
 
   useEffect(() => {
@@ -184,7 +199,13 @@ export function ConfirmEventModal({
 
   const handleConfirm = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!clientField.value.trim() || !eventDate || isTooSoon || isSubmitting) return
+    if (
+      !clientField.value.trim()
+      || !eventDate
+      || isTooSoon
+      || isSubmitting
+      || (!hasValidLocation && !hasApprovedPendingCheckout)
+    ) return
 
     const eventData: Omit<EventRecord, 'id'> = {
       clientName: clientField.value.trim(),
@@ -198,10 +219,10 @@ export function ConfirmEventModal({
       insuranceCents,
       dietary,
       kitchenNotes: kitchenNotes.trim(),
+      locationAddress,
+      distanceKm: locationDistanceKm !== null ? Math.round(locationDistanceKm * 100) / 100 : 0,
       cancelled: false,
       startTime,
-      locationAddress,
-      distanceKm: locationDistanceKm ?? undefined,
     }
 
     if (paymentMethod === 'tarjeta') {
@@ -228,6 +249,7 @@ export function ConfirmEventModal({
         const pending: PendingCheckout = {
           eventData: { ...eventData, extraIds },
           initialPayment,
+          locationPoint: locationPoint ?? undefined,
           externalReference: checkout.externalReference,
         }
         sessionStorage.setItem(PENDING_CHECKOUT_KEY, JSON.stringify(pending))
@@ -328,18 +350,37 @@ export function ConfirmEventModal({
                   </output>
                 )}
 
+                {!hasValidLocation && (
+                  <p className="rounded-lg border border-state-danger/20 bg-state-danger-bg p-3 text-xs text-state-danger">
+                    Elegí una dirección dentro de la zona de cobertura para confirmar.
+                  </p>
+                )}
+
                 <ReservationFields
                   clientName={clientField.value}
                   kitchenNotes={kitchenNotes}
                   onClientNameChange={clientField.onChange}
                   onKitchenNotesChange={setKitchenNotes}
-                  hint={clientField.isAutoCompleted ? 'Autocompletado desde tu perfil de empresa' : undefined}
+                  hint={companyFieldHint}
                 />
               </div>
 
               <div className="flex flex-col-reverse gap-2 border-t border-hairline p-5 pt-4 sm:flex-row sm:justify-end">
-                <Button type="button" variant="ghost" onClick={handleClose} disabled={isSubmitting}>Cancelar</Button>
-                <Button type="submit" variant="borravino" className="h-11 px-6" disabled={!clientField.value.trim() || !eventDate || isTooSoon || isSubmitting}>
+                <Button type="button" variant="ghost" onClick={handleClose} disabled={isSubmitting}>
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  variant="borravino"
+                  className="h-11 px-6"
+                  disabled={
+                    !clientField.value.trim()
+                    || !eventDate
+                    || isTooSoon
+                    || (!hasValidLocation && !hasApprovedPendingCheckout)
+                    || isSubmitting
+                  }
+                >
                   {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {submitLabel}
                 </Button>

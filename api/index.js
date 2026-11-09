@@ -336,7 +336,7 @@ async function sendPasswordResetEmail(toEmail, token) {
         </p>
         <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 0 0 16px 0;" />
         <p style="font-size: 12px; color: #9ca3af; margin: 0;">
-          SMT Catering \u2014 Sistema de Gesti\xF3n Gastron\xF3mica B2B
+          SMT Catering \u2014 Sistema de Gesti\xF3n Gastron\xF3mica
         </p>
       </div>
     `
