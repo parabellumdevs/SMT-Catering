@@ -40,7 +40,8 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - > - **Renderizado UI (Frontend):** Al cargar la aplicación, el frontend consulta `GET /api/auth/me` y guarda la sesión en `useAuthStore` únicamente para propósitos visuales (ocultar botones que el rol no puede ejecutar, adaptar la navegación en `AppShell` y mostrar saludo personalizado).
 - [x] **Sistema de Roles y Permisos (RBAC)**
   - [x] Definir los 4 roles del sistema en contratos compartidos ([`shared/types/roles.ts`](../shared/types/roles.ts)): `superadmin`, `admin`, `cocina` y `cliente`.
-  - [x] Integrar guards en frontend ([`src/App.tsx`](../src/App.tsx)) para restringir rutas según rol autenticado (`ProtectedRoute` y `AdminRoute`).
+  - [x] Integrar guardia unificado estricto por rol en frontend ([`src/App.tsx`](../src/App.tsx)) mediante `<RoleRoute allowedRoles={[...]} />` con redirección automática al home de cada rol (RBAC completo).
+  - [x] Saneamiento reactivo de sesión en frontend ([`src/stores/authStore.ts`](../src/stores/authStore.ts) y [`src/lib/api.ts`](../src/lib/api.ts)) con interceptor ante respuestas 401 y limpieza forzosa de `sessionStorage` ante cookies ausentes o expiradas.
 - [x] **Proxy de Desarrollo & Cliente HTTP Unificado**
   - [x] Configurar proxy de Vite en [`vite.config.ts`](../vite.config.ts) (`/api` -> `http://localhost:3001`) para evitar errores de CORS y habilitar transporte transparente de cookies en desarrollo y producción.
   - [x] Crear cliente HTTP centralizado ([`src/lib/api.ts`](../src/lib/api.ts)) para unificar llamadas del frontend a endpoints relativos (`/api/...`).
@@ -85,7 +86,7 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
 - [x] **Registro de Nuevos Usuarios (`cliente` B2B)**
   - [x] Definir esquema de validación Zod ([`shared/schemas/auth.schema.ts`](../shared/schemas/auth.schema.ts)) y endpoint backend (`POST /api/auth/register`).
   - [x] Implementar vista de registro integrada en [`src/features/login/RegisterForm.tsx`](../src/features/login/RegisterForm.tsx) (evolucionada desde el `RegisterModal` inicial) con asignación automática del rol `cliente`.
-  - [ ] Agregar campos del `MER_v3` y RF-01 en el formulario de registro B2B: **Fecha de aniversario/fundación de la empresa (`fecha_aniversario`)** y **Dirección legal (`direccion_legal`)**.
+  - [x] Agregar campos del `MER_v3` y RF-01 en el formulario de registro B2B: **Fecha de aniversario/fundación de la empresa (`fecha_aniversario`)** y **Dirección legal (`direccion_legal`)**.
 - [x] **Acceso Total de Superadmin**
   - [x] Permitir al `superadmin` acceder a toda la plataforma con permisos integrales, gestión de usuarios en `/usuarios` y navegación completa.
 
@@ -97,7 +98,7 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - [x] Incorporar ícono de engranaje (ruedita) en la barra de navegación para el rol `cliente`.
 - [x] **Gestión de Datos Personales y de Empresa**
   - [x] Pantalla [`ProfilePage.tsx`](../src/features/profile/ProfilePage.tsx) para visualización y actualización de información de contacto (razón social, CUIT de solo lectura, nombre del responsable, cargo, email, teléfono y dirección legal).
-  - [ ] Incorporar visualización y edición del campo **Fecha de aniversario de la empresa (`fecha_aniversario`)** en [`ProfilePage.tsx`](../src/features/profile/ProfilePage.tsx).
+  - [x] Incorporar visualización y edición del campo **Fecha de aniversario de la empresa (`fecha_aniversario`)** en [`ProfilePage.tsx`](../src/features/profile/ProfilePage.tsx).
 - [x] **Cambio de Contraseña**
   - [x] Formulario de actualización de contraseña con validación de contraseña actual y nueva contraseña (`POST /api/client/change-password`).
 

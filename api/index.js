@@ -271,6 +271,83 @@ function verifyJwt(token) {
   }
 }
 
+// server/lib/mailer.ts
+import nodemailer from "nodemailer";
+function getTransporter() {
+  const user = (process.env.SMTP_USER || "").trim();
+  const pass = (process.env.SMTP_PASS || "").trim();
+  if (!user || !pass) {
+    return null;
+  }
+  const host = (process.env.SMTP_HOST || "smtp-relay.brevo.com").trim();
+  const port = Number(process.env.SMTP_PORT) || 587;
+  const secure = port === 465;
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: {
+      user,
+      pass
+    }
+  });
+}
+async function sendEmail({ to, subject, html }) {
+  const transporter = getTransporter();
+  if (!transporter) {
+    return false;
+  }
+  try {
+    const fromAddress = process.env.SMTP_FROM || `"SMT Catering" <${process.env.SMTP_USER || "smtcatering.notificaciones@outlook.com"}>`;
+    await transporter.sendMail({
+      from: fromAddress,
+      to,
+      subject,
+      html
+    });
+    console.log(`[EMAIL ENVIADO] Correo enviado exitosamente a: ${to}`);
+    return true;
+  } catch (error) {
+    console.warn("[SMTP ERROR] Fall\xF3 el env\xEDo de correo mediante Nodemailer:", error);
+    return false;
+  }
+}
+async function sendPasswordResetEmail(toEmail, token) {
+  const emailSent = await sendEmail({
+    to: toEmail,
+    subject: "Recuperaci\xF3n de contrase\xF1a \u2014 SMT Catering",
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px;">
+        <div style="margin-bottom: 24px;">
+          <span style="font-size: 20px; font-weight: 700; color: #003770; letter-spacing: -0.5px;">SMT Catering</span>
+        </div>
+        <h1 style="font-size: 20px; font-weight: 600; color: #111827; margin: 0 0 12px 0;">Recuperaci\xF3n de contrase\xF1a</h1>
+        <p style="font-size: 14px; line-height: 20px; color: #4b5563; margin: 0 0 20px 0;">
+          Recibimos una solicitud para restablecer la contrase\xF1a de tu cuenta empresarial en SMT Catering.
+        </p>
+        <p style="font-size: 14px; line-height: 20px; color: #4b5563; margin: 0 0 10px 0;">
+          Tu c\xF3digo de verificaci\xF3n es:
+        </p>
+        <div style="background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; text-align: center; margin: 0 0 20px 0;">
+          <span style="font-family: 'SF Pro Mono', Monaco, Consolas, monospace; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #003770; display: inline-block;">${token}</span>
+        </div>
+        <p style="font-size: 13px; line-height: 18px; color: #6b7280; margin: 0 0 24px 0;">
+          Este c\xF3digo es v\xE1lido por <strong>10 minutos</strong> y solo puede ser utilizado una vez. Si vos no solicitaste este cambio, pod\xE9s ignorar este mensaje de forma segura.
+        </p>
+        <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 0 0 16px 0;" />
+        <p style="font-size: 12px; color: #9ca3af; margin: 0;">
+          SMT Catering \u2014 Sistema de Gesti\xF3n Gastron\xF3mica B2B
+        </p>
+      </div>
+    `
+  });
+  if (!emailSent || process.env.NODE_ENV !== "production") {
+    console.log(`
+\u{1F511} [RESET PASSWORD] Token para ${toEmail}: ${token} (Email enviado: ${emailSent ? "S\xCD" : "NO"})
+`);
+  }
+}
+
 // server/modules/auth/auth.service.ts
 var AuthService = class {
   static async login(usernameOrEmail, pass) {
@@ -349,6 +426,8 @@ var AuthService = class {
     const cargoResponsable = (data.cargoResponsable || "").trim();
     const email = (data.email || "").trim().toLowerCase();
     const telefono = (data.telefono || "").trim();
+    const direccionLegal = (data.direccionLegal || "").trim();
+    const fechaAniversario = (data.fechaAniversario || "").trim();
     const pass = data.pass || "";
     if (!razonSocial || razonSocial.length < 3) throw new Error("La raz\xF3n social es requerida");
     if (!cuit) throw new Error("El CUIT es requerido");
@@ -361,9 +440,19 @@ var AuthService = class {
     if (cuitExists) throw new Error("DUPLICADO: Ya existe una cuenta con ese CUIT");
     const passHash = hashPassword(pass);
     const result = await dbClient.execute(
-      `INSERT INTO cliente (razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, password_hash)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [razonSocial, cuit, nombreCompleto, cargoResponsable || null, email, telefono || null, passHash]
+      `INSERT INTO cliente (razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, direccion_legal, fecha_aniversario, password_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        razonSocial,
+        cuit,
+        nombreCompleto,
+        cargoResponsable || null,
+        email,
+        telefono || null,
+        direccionLegal || null,
+        fechaAniversario || null,
+        passHash
+      ]
     );
     const idCliente = Number(result.lastInsertId);
     const user = {
@@ -395,32 +484,31 @@ var AuthService = class {
     if (!staff && !cliente) {
       return;
     }
-    const raw = Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-    const token = raw.slice(0, 40).padEnd(40, "0");
-    const expiresAt = Date.now() + 60 * 60 * 1e3;
+    const token = Math.floor(1e5 + Math.random() * 9e5).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1e3;
     await dbClient.execute("DELETE FROM password_reset_tokens WHERE email = ?", [email]);
     await dbClient.execute(
       `INSERT INTO password_reset_tokens (email, token, expires_at, used)
        VALUES (?, ?, ?, 0)`,
       [email, token, expiresAt]
     );
-    console.log(`
-\u{1F511} [RESET PASSWORD] Token para ${email}: ${token}
-`);
+    await sendPasswordResetEmail(email, token);
   }
-  static async resetPassword(tokenInput, newPass, confirmPass) {
+  static async resetPassword(emailInput, tokenInput, newPass, confirmPass) {
     const dbClient = getDatabase();
+    const emailParam = (emailInput || "").trim().toLowerCase();
     const token = (tokenInput || "").trim();
-    if (!token || token.length !== 40) throw new Error("Token inv\xE1lido");
+    if (!emailParam || !emailParam.includes("@")) throw new Error("Email inv\xE1lido");
+    if (!/^\d{6}$/.test(token)) throw new Error("C\xF3digo de verificaci\xF3n inv\xE1lido");
     if (newPass.length < 6) throw new Error("La contrase\xF1a debe tener al menos 6 caracteres");
     if (newPass !== confirmPass) throw new Error("Las contrase\xF1as no coinciden");
     const row = await dbClient.queryOne(
-      "SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0",
-      [token]
+      "SELECT * FROM password_reset_tokens WHERE LOWER(email) = ? AND token = ? AND used = 0",
+      [emailParam, token]
     );
     if (!row) throw new Error("Token inv\xE1lido o ya utilizado");
     if (Date.now() > Number(row.expires_at)) {
-      await dbClient.execute("DELETE FROM password_reset_tokens WHERE token = ?", [token]);
+      await dbClient.execute("DELETE FROM password_reset_tokens WHERE LOWER(email) = ? AND token = ?", [emailParam, token]);
       throw new Error("El token expir\xF3. Solicit\xE1 uno nuevo.");
     }
     const email = row.email;
@@ -435,7 +523,10 @@ var AuthService = class {
         email
       ]);
     }
-    await dbClient.execute("UPDATE password_reset_tokens SET used = 1 WHERE token = ?", [token]);
+    await dbClient.execute("UPDATE password_reset_tokens SET used = 1 WHERE LOWER(email) = ? AND token = ?", [
+      emailParam,
+      token
+    ]);
   }
 };
 
@@ -535,8 +626,8 @@ var AuthController = class {
   }
   static async resetPassword(req, res) {
     try {
-      const { token, newPass, confirmPass } = req.body || {};
-      await AuthService.resetPassword(token, newPass, confirmPass);
+      const { email, token, newPass, confirmPass } = req.body || {};
+      await AuthService.resetPassword(email, token, newPass, confirmPass);
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -1288,6 +1379,7 @@ var UsersService = class {
     const email = body.email !== void 0 ? String(body.email).trim().toLowerCase() : existing.email;
     const telefono = body.telefono !== void 0 ? String(body.telefono).trim() : existing.telefono;
     const direccionLegal = body.direccionLegal !== void 0 ? String(body.direccionLegal).trim() : existing.direccion_legal;
+    const fechaAniversario = body.fechaAniversario !== void 0 ? body.fechaAniversario ? String(body.fechaAniversario).trim() : null : existing.fecha_aniversario;
     const activo = body.activo !== void 0 ? Number(body.activo) === 0 ? 0 : 1 : existing.activo;
     if (email !== existing.email.toLowerCase()) {
       const staffDup = await dbClient.queryOne("SELECT id_usuario FROM usuario_staff WHERE LOWER(email) = ?", [email]);
@@ -1305,7 +1397,7 @@ var UsersService = class {
     }
     await dbClient.execute(
       `UPDATE cliente
-       SET razon_social = ?, cuit = ?, nombre_completo = ?, cargo_responsable = ?, email = ?, telefono = ?, direccion_legal = ?, password_hash = ?, activo = ?
+       SET razon_social = ?, cuit = ?, nombre_completo = ?, cargo_responsable = ?, email = ?, telefono = ?, direccion_legal = ?, fecha_aniversario = ?, password_hash = ?, activo = ?
        WHERE id_cliente = ?`,
       [
         razonSocial,
@@ -1315,6 +1407,7 @@ var UsersService = class {
         email,
         telefono,
         direccionLegal,
+        fechaAniversario,
         newPasswordHash,
         activo,
         targetId
@@ -1420,6 +1513,14 @@ var ProfileService = class {
     const dbClient = getDatabase();
     const cliente = await dbClient.queryOne("SELECT * FROM cliente WHERE id_cliente = ?", [clientId]);
     if (!cliente) throw new Error("NOT_FOUND: Cliente no encontrado");
+    let fechaAniversario = "";
+    if (cliente.fecha_aniversario) {
+      if (cliente.fecha_aniversario instanceof Date) {
+        fechaAniversario = cliente.fecha_aniversario.toISOString().slice(0, 10);
+      } else {
+        fechaAniversario = String(cliente.fecha_aniversario).slice(0, 10);
+      }
+    }
     return {
       razonSocial: cliente.razon_social || "",
       cuit: cliente.cuit || "",
@@ -1427,7 +1528,8 @@ var ProfileService = class {
       cargoResponsable: cliente.cargo_responsable || "",
       email: cliente.email || "",
       telefono: cliente.telefono || "",
-      direccionLegal: cliente.direccion_legal || ""
+      direccionLegal: cliente.direccion_legal || "",
+      fechaAniversario
     };
   }
   static async updateProfile(clientId, body) {
@@ -1440,6 +1542,7 @@ var ProfileService = class {
     const email = (body.email || cliente.email || "").trim().toLowerCase();
     const telefono = (body.telefono ?? cliente.telefono ?? "").trim();
     const direccionLegal = (body.direccionLegal ?? cliente.direccion_legal ?? "").trim();
+    const fechaAniversario = (body.fechaAniversario ?? cliente.fecha_aniversario ?? "").trim();
     if (!razonSocial || !nombreCompleto || !email) {
       throw new Error("Raz\xF3n social, nombre del responsable y email son obligatorios");
     }
@@ -1461,7 +1564,8 @@ var ProfileService = class {
          cargo_responsable = ?,
          email = ?,
          telefono = ?,
-         direccion_legal = ?
+         direccion_legal = ?,
+         fecha_aniversario = ?
        WHERE id_cliente = ?`,
       [
         razonSocial,
@@ -1470,6 +1574,7 @@ var ProfileService = class {
         email,
         telefono || null,
         direccionLegal || null,
+        fechaAniversario || null,
         cliente.id_cliente
       ]
     );
@@ -1480,7 +1585,8 @@ var ProfileService = class {
       cargoResponsable,
       email,
       telefono,
-      direccionLegal
+      direccionLegal,
+      fechaAniversario
     };
   }
   static async changePassword(clientId, currentPasswordRaw, newPasswordRaw) {
