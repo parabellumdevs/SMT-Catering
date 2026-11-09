@@ -31,6 +31,7 @@ import { QuotationPage } from '@/features/quotation/QuotationPage'
 import { ComandaDetailPage, ComandaListPage } from '@/features/production/ComandasPage'
 import { PricingPage } from '@/features/pricing/PricingPage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
+import { MetricsPage } from '@/features/metrics/MetricsPage'
 import { UsersPage } from '@/features/users/UsersPage'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -138,6 +139,14 @@ export default function App() {
                   element={
                     <RoleRoute allowedRoles={['admin', 'superadmin']}>
                       <PricingPage />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="metricas"
+                  element={
+                    <RoleRoute allowedRoles={['admin', 'superadmin']}>
+                      <MetricsPage />
                     </RoleRoute>
                   }
                 />
