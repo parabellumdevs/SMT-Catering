@@ -78,6 +78,8 @@ Datos de tarjeta para realizar pruebas:
 - Nombre del titular: `APRO`
 - DNI: `12345678`
 
+IMPORTANTE: La pasarela solo funcionará correctamente con redirecciones en el ambiente desplegado, no así en local por cuestiones de seguridad.
+
 ---
 
 ## 🛠️ Comandos útiles
