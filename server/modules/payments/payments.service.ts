@@ -122,6 +122,37 @@ function buildReturnUrl(
   return url.toString();
 }
 
+function buildBalanceReturnUrl(
+  appOrigin: string,
+  status: "success" | "pending" | "failure",
+): string {
+  const url = new URL("/mis-eventos", appOrigin);
+  url.searchParams.set("mp_balance", status);
+  return url.toString();
+}
+
+function buildCheckoutReturnUrls(
+  appOrigin: string,
+  returnUrlBuilder: (
+    origin: string,
+    status: "success" | "pending" | "failure",
+  ) => string,
+): {
+  back_urls: { success: string; pending: string; failure: string };
+  auto_return?: "approved";
+} {
+  const back_urls = {
+    success: returnUrlBuilder(appOrigin, "success"),
+    pending: returnUrlBuilder(appOrigin, "pending"),
+    failure: returnUrlBuilder(appOrigin, "failure"),
+  };
+
+  return {
+    back_urls,
+    ...(new URL(back_urls.success).protocol === "https:" ? { auto_return: "approved" } : {}),
+  };
+}
+
 function validateReservation(input: CreatePreferenceInput): void {
   const reservation = input?.reservation;
 
@@ -162,9 +193,131 @@ export class PaymentsService {
         status VARCHAR(20) NOT NULL DEFAULT 'pending',
         payment_id TEXT UNIQUE,
         event_id TEXT,
+        payment_kind VARCHAR(20) NOT NULL DEFAULT 'reservation',
+        client_id INTEGER,
         created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    await db.exec(`
+      ALTER TABLE mercado_pago_checkout
+        ADD COLUMN IF NOT EXISTS payment_kind VARCHAR(20) NOT NULL DEFAULT 'reservation',
+        ADD COLUMN IF NOT EXISTS client_id INTEGER
+    `);
+    await db.exec(`
+      ALTER TABLE pago
+        ADD COLUMN IF NOT EXISTS mercado_pago_payment_id TEXT
+    `);
+    await db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS pago_mercado_pago_payment_id_unique
+      ON pago (mercado_pago_payment_id)
+    `);
+  }
+
+  static async createBalancePreference(
+    eventId: string,
+    clientId: number,
+    appOrigin: string,
+  ): Promise<{ initPoint: string; externalReference: string }> {
+    if (!/^EV-\d+$/.test(eventId) || !Number.isSafeInteger(clientId) || clientId <= 0) {
+      throw new PaymentError("Los datos del evento no son válidos.");
+    }
+
+    const db = getDatabase();
+    const reservationId = Number(eventId.slice(3));
+    const event = await db.queryOne<{
+      id_cliente: number;
+      fecha_evento: string;
+      monto_total: number | string;
+      evento_cancelado: number;
+      estado_evento: string;
+      estado_pago: string;
+    }>(
+      `SELECT id_cliente, fecha_evento, monto_total, evento_cancelado, estado_evento, estado_pago
+       FROM reserva
+       WHERE id_reserva = ?`,
+      [reservationId],
+    );
+
+    if (!event || Number(event.id_cliente) !== clientId) {
+      throw new PaymentError("No se encontró el evento para esta cuenta.", 404);
+    }
+    if (event.evento_cancelado === 1 || event.estado_evento === "Cancelado") {
+      throw new PaymentError("No se puede pagar el saldo de un evento cancelado.");
+    }
+    if (event.estado_pago !== "SALDO_PENDIENTE") {
+      throw new PaymentError("Este evento no tiene un saldo pendiente.");
+    }
+
+    const payments = await db.query<{ monto: number | string }>(
+      `SELECT monto FROM pago WHERE id_reserva = ? AND estado = 'confirmado'`,
+      [reservationId],
+    );
+    const paidAmount = payments.reduce((sum, payment) => sum + (Number(payment.monto) || 0), 0);
+    const balanceCents = Math.round(
+      Math.max(0, Number(event.monto_total) - paidAmount) * 100,
+    );
+    if (!Number.isSafeInteger(balanceCents) || balanceCents <= 0) {
+      throw new PaymentError("El evento no tiene un saldo pendiente.");
+    }
+
+    const origin = normalizeAppOrigin(appOrigin);
+    const externalReference = randomUUID();
+    await this.ensureCheckoutTable();
+    await db.execute(
+      `INSERT INTO mercado_pago_checkout
+        (external_reference, reservation_data, expected_amount_cents, status, event_id, payment_kind, client_id)
+       VALUES (?, ?, ?, 'pending', ?, 'balance', ?)`,
+      [
+        externalReference,
+        JSON.stringify({ eventId }),
+        balanceCents,
+        eventId,
+        clientId,
+      ],
+    );
+
+    try {
+      const preference = await mercadoPagoRequest<{
+        id: string;
+        init_point?: string;
+      }>("/checkout/preferences", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            {
+              id: externalReference,
+              title: `Saldo de evento ${eventId} - ${event.fecha_evento}`,
+              quantity: 1,
+              unit_price: balanceCents / 100,
+              currency_id: "ARS",
+            },
+          ],
+          external_reference: externalReference,
+          ...buildCheckoutReturnUrls(origin, buildBalanceReturnUrl),
+        }),
+      });
+
+      if (!preference.id || !preference.init_point) {
+        throw new PaymentError("Mercado Pago no devolvió una URL de pago.", 502);
+      }
+
+      await db.execute(
+        `UPDATE mercado_pago_checkout
+         SET preference_id = ?
+         WHERE external_reference = ?`,
+        [preference.id, externalReference],
+      );
+
+      return { initPoint: preference.init_point, externalReference };
+    } catch (error) {
+      await db.execute(
+        `UPDATE mercado_pago_checkout
+         SET status = 'failed'
+         WHERE external_reference = ?`,
+        [externalReference],
+      );
+      throw error;
+    }
   }
 
   static async createPreference(
@@ -258,12 +411,7 @@ export class PaymentsService {
             },
           ],
           external_reference: externalReference,
-          back_urls: {
-            success: buildReturnUrl(origin, "success"),
-            pending: buildReturnUrl(origin, "pending"),
-            failure: buildReturnUrl(origin, "failure"),
-          },
-          auto_return: "approved",
+          ...buildCheckoutReturnUrls(origin, buildReturnUrl),
         }),
       });
 
@@ -312,14 +460,15 @@ export class PaymentsService {
       status: string;
       payment_id: string | null;
       event_id: string | null;
+      payment_kind: string;
     }>(
-      `SELECT preference_id, reservation_data, expected_amount_cents, status, payment_id, event_id
+      `SELECT preference_id, reservation_data, expected_amount_cents, status, payment_id, event_id, payment_kind
        FROM mercado_pago_checkout
        WHERE external_reference = ?`,
       [externalReference],
     );
 
-    if (!checkout) {
+    if (!checkout || checkout.payment_kind !== "reservation") {
       throw new PaymentError(
         "No se encontró la reserva asociada al pago.",
         404,
@@ -404,5 +553,232 @@ export class PaymentsService {
       );
       throw error;
     }
+  }
+
+  static async confirmBalancePayment(
+      paymentId: string,
+      externalReference: string,
+      clientId: number,
+    ): Promise<{ eventId: string }> {
+      if (!/^\d+$/.test(paymentId) || !externalReference) {
+        throw new PaymentError("La información de retorno del pago no es válida.");
+      }
+      if (!Number.isSafeInteger(clientId) || clientId <= 0) {
+        throw new PaymentError("No se pudo validar la cuenta cliente.", 401);
+      }
+
+      const db = getDatabase();
+      await this.ensureCheckoutTable();
+      const checkout = await db.queryOne<{
+        expected_amount_cents: number | string;
+        status: string;
+        payment_kind: string;
+        client_id: number | null;
+        event_id: string | null;
+        payment_id: string | null;
+      }>(
+        `SELECT expected_amount_cents, status, payment_kind, client_id, event_id, payment_id
+         FROM mercado_pago_checkout
+         WHERE external_reference = ?`,
+        [externalReference],
+      );
+
+      if (
+        !checkout
+        || checkout.payment_kind !== "balance"
+        || Number(checkout.client_id) !== clientId
+        || !checkout.event_id
+      ) {
+        throw new PaymentError("No se encontró el pago de saldo para esta cuenta.", 404);
+      }
+      if (checkout.status === "completed") {
+        if (checkout.payment_id !== paymentId) {
+          throw new PaymentError("El pago no coincide con la confirmación registrada.", 409);
+        }
+        return { eventId: checkout.event_id };
+      }
+      if (checkout.status !== "pending") {
+        throw new PaymentError(
+          "Este pago ya se está procesando o no puede confirmarse.",
+          409,
+        );
+      }
+
+      const payment = await mercadoPagoRequest<MercadoPagoPayment>(
+        `/v1/payments/${encodeURIComponent(paymentId)}`,
+        { method: "GET" },
+      );
+      const expectedAmountCents = Number(checkout.expected_amount_cents);
+      const matchesCheckout =
+        payment.status === "approved"
+        && payment.currency_id === "ARS"
+        && payment.external_reference === externalReference
+        && Math.round(payment.transaction_amount * 100) === expectedAmountCents;
+      if (!matchesCheckout) {
+        throw new PaymentError(
+          "Mercado Pago todavía no confirma el pago de este saldo.",
+          402,
+        );
+      }
+
+      const claim = await db.execute(
+        `UPDATE mercado_pago_checkout
+         SET status = 'processing', payment_id = ?
+         WHERE external_reference = ? AND status = 'pending' AND client_id = ?`,
+        [paymentId, externalReference, clientId],
+      );
+      if (claim.changes === 0) {
+        const latest = await db.queryOne<{
+          status: string;
+          event_id: string | null;
+          payment_id: string | null;
+        }>(
+          `SELECT status, event_id, payment_id
+           FROM mercado_pago_checkout
+           WHERE external_reference = ?`,
+          [externalReference],
+        );
+        if (
+          latest?.status === "completed"
+          && latest.event_id
+          && latest.payment_id === paymentId
+        ) {
+          return { eventId: latest.event_id };
+        }
+        throw new PaymentError(
+          "El pago ya se está procesando. Volvé a consultar en unos segundos.",
+          409,
+        );
+      }
+
+      try {
+        const reservationId = Number(checkout.event_id.slice(3));
+        const event = await db.queryOne<{
+          id_cliente: number;
+          monto_total: number | string;
+          evento_cancelado: number;
+          estado_evento: string;
+          estado_pago: string;
+        }>(
+          `SELECT id_cliente, monto_total, evento_cancelado, estado_evento, estado_pago
+           FROM reserva
+           WHERE id_reserva = ?`,
+          [reservationId],
+        );
+        if (
+          !event
+          || Number(event.id_cliente) !== clientId
+          || event.evento_cancelado === 1
+          || event.estado_evento === "Cancelado"
+          || event.estado_pago !== "SALDO_PENDIENTE"
+        ) {
+          throw new PaymentError("El evento ya no admite el pago de saldo.", 409);
+        }
+
+        const confirmedPayments = await db.query<{ monto: number | string }>(
+          `SELECT monto FROM pago WHERE id_reserva = ? AND estado = 'confirmado'`,
+          [reservationId],
+        );
+        const paidAmount = confirmedPayments.reduce(
+          (sum, current) => sum + (Number(current.monto) || 0),
+          0,
+        );
+        const currentBalanceCents = Math.round(
+          Math.max(0, Number(event.monto_total) - paidAmount) * 100,
+        );
+        if (currentBalanceCents !== expectedAmountCents) {
+          throw new PaymentError(
+            "El saldo del evento cambió desde que se inició el pago. Actualizá tus eventos e intentá nuevamente.",
+            409,
+          );
+        }
+
+        const recordedPayment = await db.queryOne<{ id_reserva: number }>(
+          `WITH eligible_reservation AS (
+             SELECT r.id_reserva
+             FROM reserva AS r
+             WHERE r.id_reserva = ?
+               AND r.id_cliente = ?
+               AND r.evento_cancelado = 0
+               AND r.estado_evento <> 'Cancelado'
+               AND r.estado_pago = 'SALDO_PENDIENTE'
+               AND ROUND(
+                 (r.monto_total - COALESCE((
+                   SELECT SUM(existing_payment.monto)
+                   FROM pago AS existing_payment
+                   WHERE existing_payment.id_reserva = r.id_reserva
+                     AND existing_payment.estado = 'confirmado'
+                 ), 0)) * 100
+               ) = ?
+             FOR UPDATE
+           ),
+           inserted_payment AS (
+             INSERT INTO pago (
+               id_reserva, tipo_pago, monto, pago_online, pago_completo, estado,
+               mercado_pago_payment_id
+             )
+             SELECT id_reserva, 'SALDO', ?, 1, 1, 'confirmado', ?
+             FROM eligible_reservation
+             ON CONFLICT (mercado_pago_payment_id) DO NOTHING
+             RETURNING id_reserva
+           ),
+           updated_reservation AS (
+             UPDATE reserva AS r
+             SET estado_pago = 'SALDADO',
+                 fecha_actualizacion = CURRENT_TIMESTAMP
+             WHERE r.id_reserva IN (SELECT id_reserva FROM inserted_payment)
+             RETURNING r.id_reserva
+           )
+           SELECT id_reserva FROM updated_reservation`,
+          [
+            reservationId,
+            clientId,
+            expectedAmountCents,
+            expectedAmountCents / 100,
+            paymentId,
+          ],
+        );
+        if (!recordedPayment) {
+          const previousPayment = await db.queryOne<{
+            id_reserva: number;
+            monto: number | string;
+          }>(
+            `SELECT id_reserva, monto
+             FROM pago
+             WHERE mercado_pago_payment_id = ? AND estado = 'confirmado'`,
+            [paymentId],
+          );
+          const alreadyRecorded =
+            previousPayment
+            && Number(previousPayment.id_reserva) === reservationId
+            && Math.round(Number(previousPayment.monto) * 100) === expectedAmountCents
+            && (await db.queryOne<{ estado_pago: string }>(
+              `SELECT estado_pago FROM reserva WHERE id_reserva = ?`,
+              [reservationId],
+            ))?.estado_pago === "SALDADO";
+          if (!alreadyRecorded) {
+            throw new PaymentError(
+              "No se pudo registrar el pago de forma segura. Contactá a soporte con el comprobante de Mercado Pago.",
+              409,
+            );
+          }
+        }
+        await db.execute(
+          `UPDATE mercado_pago_checkout
+           SET status = 'completed'
+           WHERE external_reference = ? AND status = 'processing'`,
+          [externalReference],
+        );
+
+        return { eventId: checkout.event_id };
+      } catch (error) {
+        await db.execute(
+          `UPDATE mercado_pago_checkout
+           SET status = 'pending', payment_id = NULL
+           WHERE external_reference = ? AND status = 'processing'`,
+          [externalReference],
+        );
+        throw error;
+      }
   }
 }

@@ -129,16 +129,11 @@ export class EventsController {
           return;
         }
 
-        // 3. Pago de saldo restante (50%)
+        // Los clientes solo actualizan el saldo mediante la confirmación de Mercado Pago.
         if (updates.paymentStatus === "SALDADO") {
-          if (reserva.evento_cancelado === 1) {
-            res.status(400).json({ error: "No se puede abonar el saldo de un evento cancelado." });
-            return;
-          }
-          await EventsService.updateEvent(id, {
-            paymentStatus: "SALDADO",
+          res.status(403).json({
+            error: "El saldo debe pagarse y confirmarse mediante la pasarela de pago.",
           });
-          res.json({ success: true, paymentStatus: "SALDADO" });
           return;
         }
 

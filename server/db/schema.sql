@@ -88,7 +88,8 @@ CREATE TABLE IF NOT EXISTS pago (
   pago_online INTEGER NOT NULL DEFAULT 1,
   pago_completo INTEGER NOT NULL DEFAULT 0,
   fecha_pago TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-  estado VARCHAR(20) NOT NULL CHECK(estado IN ('pendiente', 'confirmado', 'cancelado'))
+  estado VARCHAR(20) NOT NULL CHECK(estado IN ('pendiente', 'confirmado', 'cancelado')),
+  mercado_pago_payment_id TEXT UNIQUE
 );
 
 -- Preferencias y pagos de Mercado Pago Checkout Pro
@@ -100,6 +101,8 @@ CREATE TABLE IF NOT EXISTS mercado_pago_checkout (
   status VARCHAR(20) NOT NULL DEFAULT 'pending',
   payment_id TEXT UNIQUE,
   event_id TEXT,
+  payment_kind VARCHAR(20) NOT NULL DEFAULT 'reservation',
+  client_id INTEGER,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

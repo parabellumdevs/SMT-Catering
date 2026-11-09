@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { useState } from 'react'
-import { AlertCircle, CheckCircle2, CircleDollarSign, Copy, CreditCard, Landmark, Loader2, X } from 'lucide-react'
+import { AlertCircle, CircleDollarSign, CreditCard, Loader2, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
@@ -11,40 +11,30 @@ interface PayBalanceClientModalProps {
   readonly event: EventRecord | null
   readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
-  readonly onPaymentSuccess: (eventId: string) => void
 }
 
 export function PayBalanceClientModal({
   event,
   open,
   onOpenChange,
-  onPaymentSuccess,
 }: PayBalanceClientModalProps) {
-  const [method, setMethod] = useState<'card' | 'transfer'>('card')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
 
   if (!event) return null
 
   const outstandingBalanceCents = Math.max(0, event.totalCents - event.depositCents)
-
-  const handleCopyAlias = () => {
-    navigator.clipboard.writeText('SMT.CATERING.B2B')
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
 
   const handlePay = async () => {
     try {
       setIsSubmitting(true)
       setErrorMessage(null)
 
-      await api.patch(`/api/events/${event.id}`, { paymentStatus: 'SALDADO' })
-
-      setIsSubmitting(false)
-      onPaymentSuccess(event.id)
-      onOpenChange(false)
+      const { initPoint } = await api.post<{ initPoint: string }>(
+        '/api/payments/balance/preference',
+        { eventId: event.id },
+      )
+      window.location.assign(initPoint)
     } catch (err: unknown) {
       setIsSubmitting(false)
       const msg = err instanceof Error ? err.message : 'Error inesperado al procesar el pago'
@@ -113,78 +103,10 @@ export function PayBalanceClientModal({
               </p>
             </div>
 
-            {/* Selector de medio de pago */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-500">
-                Medio de Pago
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMethod('card')}
-                  className={`flex items-center gap-2.5 p-3 rounded-xl border text-left text-xs font-medium transition-all ${
-                    method === 'card'
-                      ? 'border-brand bg-brand/5 text-brand font-semibold shadow-xs'
-                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
-                  }`}
-                >
-                  <CreditCard className="h-4 w-4 shrink-0" />
-                  <div>
-                    <p className="font-semibold">Tarjeta / Débito</p>
-                    <p className="text-[10px] text-gray-400">Acreditación instantánea</p>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setMethod('transfer')}
-                  className={`flex items-center gap-2.5 p-3 rounded-xl border text-left text-xs font-medium transition-all ${
-                    method === 'transfer'
-                      ? 'border-brand bg-brand/5 text-brand font-semibold shadow-xs'
-                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
-                  }`}
-                >
-                  <Landmark className="h-4 w-4 shrink-0" />
-                  <div>
-                    <p className="font-semibold">Transferencia</p>
-                    <p className="text-[10px] text-gray-400">CBU / Alias oficial</p>
-                  </div>
-                </button>
-              </div>
+            <div className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-200 bg-gray-50 text-xs text-gray-600">
+              <CreditCard className="h-5 w-5 shrink-0 text-brand" />
+              <p>Vas a continuar a Mercado Pago para abonar el saldo con tarjeta de crédito o débito.</p>
             </div>
-
-            {/* Detalles según medio */}
-            {method === 'transfer' ? (
-              <div className="p-3.5 rounded-xl border border-gray-200 bg-gray-50 text-xs space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500">Alias CBU:</span>
-                  <div className="flex items-center gap-1 font-mono font-bold text-gray-800">
-                    <span>SMT.CATERING.B2B</span>
-                    <button
-                      type="button"
-                      onClick={handleCopyAlias}
-                      className="p-1 rounded text-gray-400 hover:text-gray-600"
-                      title="Copiar Alias"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </button>
-                    {copied && <span className="text-[10px] text-emerald-600 font-sans">¡Copiado!</span>}
-                  </div>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">CUIT:</span>
-                  <span className="font-mono text-gray-800">30-71234567-9</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Titular:</span>
-                  <span className="text-gray-800 font-medium">SMT Catering S.A.</span>
-                </div>
-              </div>
-            ) : (
-              <div className="p-3.5 rounded-xl border border-gray-200 bg-gray-50 text-xs text-gray-600 space-y-1">
-                <p>Al confirmar serás redirigido a la pasarela segura integrada para abonar con tarjeta corporativa o débito automático.</p>
-              </div>
-            )}
 
             {errorMessage && (
               <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 text-red-700 text-xs border border-red-100">
@@ -209,7 +131,7 @@ export function PayBalanceClientModal({
               type="button"
               onClick={handlePay}
               disabled={isSubmitting || outstandingBalanceCents <= 0}
-              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-medium shadow-xs"
+              className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-medium shadow-xs"
             >
               {isSubmitting ? (
                 <>
@@ -218,8 +140,8 @@ export function PayBalanceClientModal({
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="h-4 w-4" />
-                  Confirmar Pago ({formatCurrency(outstandingBalanceCents)})
+                  <CreditCard className="h-4 w-4" />
+                  Pagar con Mercado Pago ({formatCurrency(outstandingBalanceCents)})
                 </>
               )}
             </Button>
