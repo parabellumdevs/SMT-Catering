@@ -1,58 +1,93 @@
 /**
  * RegisterForm — Formulario de registro B2B para la pantalla de autenticación.
  */
-import { useState, type FormEvent } from 'react'
-import { Building2, User, Phone, FileText, KeyRound, Mail, UserCheck, Calendar, MapPin } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { api } from '@/lib/api'
+import { useState, type FormEvent } from "react";
+import {
+  Building2,
+  User,
+  Phone,
+  FileText,
+  KeyRound,
+  Mail,
+  UserCheck,
+  Calendar,
+  MapPin,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { api } from "@/lib/api";
+import {
+  registerSchema,
+  registerBaseSchema,
+} from "@shared/schemas/auth.schema";
 
 interface RegisterFormProps {
-  onSwitchToLogin: () => void
+  onSwitchToLogin: () => void;
 }
 
 export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
-  const [razonSocial, setRazonSocial] = useState('')
-  const [cuit, setCuit] = useState('')
-  const [nombreCompleto, setNombreCompleto] = useState('')
-  const [cargoResponsable, setCargoResponsable] = useState('')
-  const [regEmail, setRegEmail] = useState('')
-  const [telefono, setTelefono] = useState('')
-  const [direccionLegal, setDireccionLegal] = useState('')
-  const [fechaAniversario, setFechaAniversario] = useState('')
-  const [regPass, setRegPass] = useState('')
-  const [confirmPass, setConfirmPass] = useState('')
-  
-  const [regLoading, setRegLoading] = useState(false)
-  const [regError, setRegError] = useState('')
-  const [regSuccess, setRegSuccess] = useState(false)
+  const [razonSocial, setRazonSocial] = useState("");
+  const [cuit, setCuit] = useState("");
+  const [nombreCompleto, setNombreCompleto] = useState("");
+  const [cargoResponsable, setCargoResponsable] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [direccionLegal, setDireccionLegal] = useState("");
+  const [fechaAniversario, setFechaAniversario] = useState("");
+  const [regPass, setRegPass] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
+
+  const [regLoading, setRegLoading] = useState(false);
+  const [regError, setRegError] = useState("");
+  const [regSuccess, setRegSuccess] = useState(false);
+  const emailError =
+    regEmail.trim() &&
+    !registerBaseSchema.shape.email.safeParse(regEmail).success
+      ? "Ingresá un email válido (ej: nombre@empresa.com)"
+      : "";
+  const passMismatchError =
+    confirmPass && regPass !== confirmPass
+      ? "Las contraseñas no coinciden"
+      : "";
 
   const handleCuitChange = (raw: string) => {
-    const digits = raw.replace(/\D/g, '').slice(0, 11)
-    let formatted = digits
-    if (digits.length > 2) formatted = digits.slice(0, 2) + '-' + digits.slice(2)
-    if (digits.length > 10) formatted = formatted.slice(0, 11) + '-' + digits.slice(10)
-    setCuit(formatted)
-    setRegError('')
-  }
+    const digits = raw.replace(/\D/g, "").slice(0, 11);
+    let formatted = digits;
+    if (digits.length > 2)
+      formatted = digits.slice(0, 2) + "-" + digits.slice(2);
+    if (digits.length > 10)
+      formatted = formatted.slice(0, 11) + "-" + digits.slice(10);
+    setCuit(formatted);
+    setRegError("");
+  };
 
   const handleRegisterSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setRegError('')
+    e.preventDefault();
+    setRegError("");
 
-    if (regPass !== confirmPass) {
-      setRegError('Las contraseñas no coinciden.')
-      return
-    }
-    if (regPass.length < 6) {
-      setRegError('La contraseña debe tener al menos 6 caracteres.')
-      return
+    const parsed = registerSchema.safeParse({
+      razonSocial,
+      cuit,
+      nombreCompleto,
+      cargoResponsable,
+      email: regEmail,
+      telefono,
+      direccionLegal,
+      fechaAniversario,
+      pass: regPass,
+      confirmPass,
+    });
+    if (!parsed.success) {
+      setRegError(
+        parsed.error.issues[0]?.message ?? "Revisá los datos ingresados.",
+      );
+      return;
     }
 
-    setRegLoading(true)
+    setRegLoading(true);
     try {
-      await api.post('/api/auth/register', {
+      await api.post("/api/auth/register", {
         razonSocial: razonSocial.trim(),
         cuit: cuit.trim(),
         nombreCompleto: nombreCompleto.trim(),
@@ -62,14 +97,16 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         direccionLegal: direccionLegal.trim() || undefined,
         fechaAniversario: fechaAniversario.trim() || undefined,
         pass: regPass,
-      })
-      setRegSuccess(true)
+      });
+      setRegSuccess(true);
     } catch (err: any) {
-      setRegError(err?.message || 'No se pudo completar el registro. Intentá de nuevo.')
+      setRegError(
+        err?.message || "No se pudo completar el registro. Intentá de nuevo.",
+      );
     } finally {
-      setRegLoading(false)
+      setRegLoading(false);
     }
-  }
+  };
 
   if (regSuccess) {
     return (
@@ -81,7 +118,8 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
           ¡Empresa registrada con éxito!
         </h2>
         <p className="text-sm text-gray-500 max-w-xs mx-auto">
-          Tu cuenta ha sido creada correctamente. Ya podés iniciar sesión con tus credenciales.
+          Tu cuenta ha sido creada correctamente. Ya podés iniciar sesión con
+          tus credenciales.
         </p>
         <Button
           type="button"
@@ -93,14 +131,17 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
           Ir a Iniciar Sesión
         </Button>
       </div>
-    )
+    );
   }
 
   return (
     <form onSubmit={handleRegisterSubmit} className="space-y-4 pt-2">
       {/* Razón social */}
       <div className="space-y-1.5">
-        <Label htmlFor="reg-razon" className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+        <Label
+          htmlFor="reg-razon"
+          className="text-xs font-semibold uppercase tracking-wider text-gray-600"
+        >
           Nombre de la empresa *
         </Label>
         <div className="relative">
@@ -113,14 +154,20 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             autoFocus
             className="pl-10"
             value={razonSocial}
-            onChange={(e) => { setRazonSocial(e.target.value); setRegError('') }}
+            onChange={(e) => {
+              setRazonSocial(e.target.value);
+              setRegError("");
+            }}
           />
         </div>
       </div>
 
       {/* CUIT */}
       <div className="space-y-1.5">
-        <Label htmlFor="reg-cuit" className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+        <Label
+          htmlFor="reg-cuit"
+          className="text-xs font-semibold uppercase tracking-wider text-gray-600"
+        >
           CUIT *
         </Label>
         <div className="relative">
@@ -140,7 +187,10 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       {/* Nombre responsable + cargo */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="reg-nombre" className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+          <Label
+            htmlFor="reg-nombre"
+            className="text-xs font-semibold uppercase tracking-wider text-gray-600"
+          >
             Nombre del responsable *
           </Label>
           <div className="relative">
@@ -152,12 +202,18 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
               autoComplete="name"
               className="pl-10"
               value={nombreCompleto}
-              onChange={(e) => { setNombreCompleto(e.target.value); setRegError('') }}
+              onChange={(e) => {
+                setNombreCompleto(e.target.value);
+                setRegError("");
+              }}
             />
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="reg-cargo" className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+          <Label
+            htmlFor="reg-cargo"
+            className="text-xs font-semibold uppercase tracking-wider text-gray-600"
+          >
             Cargo
           </Label>
           <Input
@@ -172,26 +228,40 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
 
       {/* Email */}
       <div className="space-y-1.5">
-        <Label htmlFor="reg-email" className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+        <Label
+          htmlFor="reg-email"
+          className="text-xs font-semibold uppercase tracking-wider text-gray-600"
+        >
           Email corporativo *
         </Label>
         <div className="relative">
           <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            id="reg-email"
-            type="email"
-            placeholder="responsable@empresa.com"
-            autoComplete="email"
-            className="pl-10"
-            value={regEmail}
-            onChange={(e) => { setRegEmail(e.target.value); setRegError('') }}
-          />
+          <div className="relative">
+            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              id="reg-email"
+              type="email"
+              placeholder="responsable@empresa.com"
+              autoComplete="email"
+              aria-invalid={!!emailError}
+              className={`pl-10 ${emailError ? "border-red-500 focus-visible:ring-red-500" : ""}`}
+              value={regEmail}
+              onChange={(e) => {
+                setRegEmail(e.target.value);
+                setRegError("");
+              }}
+            />
+          </div>
+          {emailError && <p className="text-xs text-red-600">{emailError}</p>}
         </div>
       </div>
 
       {/* Teléfono */}
       <div className="space-y-1.5">
-        <Label htmlFor="reg-tel" className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+        <Label
+          htmlFor="reg-tel"
+          className="text-xs font-semibold uppercase tracking-wider text-gray-600"
+        >
           Teléfono / WhatsApp
         </Label>
         <div className="relative">
@@ -199,18 +269,25 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
           <Input
             id="reg-tel"
             type="tel"
-            placeholder="+54 11 1234-5678"
+            inputMode="numeric"
+            placeholder="Ej: 1112345678"
             autoComplete="tel"
             className="pl-10"
             value={telefono}
-            onChange={(e) => setTelefono(e.target.value)}
+            onChange={(e) => {
+              setTelefono(e.target.value.replace(/\D/g, "").slice(0, 13));
+              setRegError("");
+            }}
           />
         </div>
       </div>
 
       {/* Dirección Legal */}
       <div className="space-y-1.5">
-        <Label htmlFor="reg-direccion" className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+        <Label
+          htmlFor="reg-direccion"
+          className="text-xs font-semibold uppercase tracking-wider text-gray-600"
+        >
           Dirección legal
         </Label>
         <div className="relative">
@@ -228,7 +305,10 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
 
       {/* Fecha de aniversario / fundación */}
       <div className="space-y-1.5">
-        <Label htmlFor="reg-aniversario" className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+        <Label
+          htmlFor="reg-aniversario"
+          className="text-xs font-semibold uppercase tracking-wider text-gray-600"
+        >
           Fecha de aniversario o fundación
         </Label>
         <div className="relative">
@@ -246,7 +326,10 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       {/* Contraseñas */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="reg-pass" className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+          <Label
+            htmlFor="reg-pass"
+            className="text-xs font-semibold uppercase tracking-wider text-gray-600"
+          >
             Contraseña *
           </Label>
           <div className="relative">
@@ -258,12 +341,18 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
               autoComplete="new-password"
               className="pl-10"
               value={regPass}
-              onChange={(e) => { setRegPass(e.target.value); setRegError('') }}
+              onChange={(e) => {
+                setRegPass(e.target.value);
+                setRegError("");
+              }}
             />
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="reg-confirm" className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+          <Label
+            htmlFor="reg-confirm"
+            className="text-xs font-semibold uppercase tracking-wider text-gray-600"
+          >
             Confirmar *
           </Label>
           <Input
@@ -271,14 +360,29 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             type="password"
             placeholder="Repetí la clave"
             autoComplete="new-password"
+            aria-invalid={!!passMismatchError}
+            className={
+              passMismatchError
+                ? "border-red-500 focus-visible:ring-red-500"
+                : ""
+            }
             value={confirmPass}
-            onChange={(e) => { setConfirmPass(e.target.value); setRegError('') }}
+            onChange={(e) => {
+              setConfirmPass(e.target.value);
+              setRegError("");
+            }}
           />
+          {passMismatchError && (
+            <p className="text-xs text-red-600">{passMismatchError}</p>
+          )}
         </div>
       </div>
 
       {regError && (
-        <p role="alert" className="text-sm text-red-600 bg-red-50 p-3 rounded-md border border-red-200">
+        <p
+          role="alert"
+          className="text-sm text-red-600 bg-red-50 p-3 rounded-md border border-red-200"
+        >
           {regError}
         </p>
       )}
@@ -295,15 +399,19 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
           !regEmail.trim() ||
           !regPass ||
           !confirmPass ||
+          !!emailError ||
+          !!passMismatchError ||
           regLoading
         }
       >
         <Building2 className="h-4 w-4" />
-        {regLoading ? 'Registrando empresa…' : 'Registrar Empresa e Iniciar Cotización'}
+        {regLoading
+          ? "Registrando empresa…"
+          : "Registrar Empresa e Iniciar Cotización"}
       </Button>
 
       <p className="text-center text-xs text-gray-500 pt-2">
-        ¿Ya tenés cuenta?{' '}
+        ¿Ya tenés cuenta?{" "}
         <button
           type="button"
           onClick={onSwitchToLogin}
@@ -313,5 +421,5 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         </button>
       </p>
     </form>
-  )
+  );
 }
