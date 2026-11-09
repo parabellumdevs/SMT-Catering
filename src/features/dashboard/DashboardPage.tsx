@@ -3,12 +3,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/AppShell'
 import { cn, daysUntil } from '@/lib/utils'
-import { KpiGrid } from '@/features/dashboard/components/KpiGrid'
 import { EventCards, EventTable } from '@/features/dashboard/components/EventTable'
-import {
-  summarizeEvents,
-  useEvents,
-} from '@/features/dashboard/hooks/useEventsSummary'
+import { useEvents } from '@/features/dashboard/hooks/useEventsSummary'
 import { api } from '@/lib/api'
 
 type EventTab = 'proximos' | 'pasados' | 'cancelados'
@@ -56,9 +52,6 @@ export function DashboardPage() {
   )
   const firstItem = sortedVisible.length === 0 ? 0 : (activePage - 1) * EVENTS_PER_PAGE + 1
   const lastItem = Math.min(activePage * EVENTS_PER_PAGE, sortedVisible.length)
-
-  const summary = useMemo(() => summarizeEvents(events), [events])
-
   const handleRescheduleEvent = async (
     eventId: string,
     newDate: string,
@@ -108,8 +101,6 @@ export function DashboardPage() {
         title="Panel de Administración"
         description="Bienvenida, Ana. Aquí tienes el resumen de hoy."
       />
-
-      <KpiGrid summary={summary} />
 
       {/* Sección de Gestión de Eventos con el switch a la derecha */}
       <div className="mt-8 space-y-4">

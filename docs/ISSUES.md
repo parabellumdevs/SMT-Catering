@@ -179,8 +179,8 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - [ ] Botón para cambio/reprogramación manual de fecha validando disponibilidad.
   - [ ] **Registro de pago manual/presencial** cuando el cliente abona en el local (actualizando el estado a `SALDADO` e insertando el registro en `pago` sin redireccionar a pasarela externa).
   - [ ] Botón para cancelación de evento con cálculo de reintegro según la regla de 7 días y baja de comanda en cocina.
-- [ ] **Separación de Vistas**
-  - [ ] Mover las tarjetas de métricas (`KpiGrid`) fuera de [`DashboardPage.tsx`](../src/features/dashboard/components/KpiGrid.tsx) hacia la vista independiente de **"Métricas"** (`/metricas`).
+- [x] **Separación de Vistas**
+  - [x] Mover las tarjetas de métricas (`KpiGrid`) fuera de [`DashboardPage.tsx`](../src/features/dashboard/components/KpiGrid.tsx) hacia la vista independiente de **"Métricas"** (`/metricas`).
 - [ ] **Restricciones de Acceso para Rol Cocina (`cocina`)**
   - [x] Sanitización bocetada en [`EventsController.list`](../server/modules/events/events.controller.ts).
   - [ ] Aplicar la sanitización en el endpoint activo `GET /api/events` y ocultar en la UI de [`EventTable.tsx`](../src/features/dashboard/components/EventTable.tsx) las columnas de importes, saldos y botones de cobro/edición para el rol `cocina`.
@@ -203,14 +203,14 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
 
 ## 9. Métricas & Reportes [Admin]
 
-- [ ] **Nueva Vista Independiente de Métricas (`/metricas`)**
+- [x] **Nueva Vista Independiente de Métricas (`/metricas`)**
   - [x] Crear scaffold de la vista [`src/features/metrics/MetricsPage.tsx`](../src/features/metrics/MetricsPage.tsx).
-  - [ ] Configurar la ruta `/metricas` en [`src/App.tsx`](../src/App.tsx) accesible únicamente para `admin` y `superadmin` (`AdminRoute`) y agregarla en [`nav-items.ts`](../src/components/layout/nav-items.ts).
-  - [ ] Reubicar aquí las tarjetas e indicadores de facturación, señas cobradas, saldos por cobrar y volumen de comensales.
-  - [ ] Incorporar las estadísticas específicas solicitadas por el cliente en las Meets 3 y 4:
-    - [ ] **Estadística de ticket promedio por evento.**
-    - [ ] **Métrica del día más solicitado** (Viernes vs Sábado vs Domingo).
-    - [ ] **Métrica de la estación / isla más solicitada.**
+  - [x] Configurar la ruta `/metricas` en [`src/App.tsx`](../src/App.tsx) accesible únicamente para `admin` y `superadmin` (`AdminRoute`) y agregarla en [`nav-items.ts`](../src/components/layout/nav-items.ts).
+  - [x] Reubicar aquí las tarjetas e indicadores de facturación, señas cobradas, saldos por cobrar y volumen de comensales.
+  - [x] Incorporar las estadísticas específicas solicitadas por el cliente en las Meets 3 y 4:
+    - [x] **Estadística de ticket promedio por evento.**
+    - [x] **Métrica del día más solicitado** (Viernes vs Sábado vs Domingo).
+    - [x] **Métrica de la estación / isla más solicitada.**
 
 ---
 
