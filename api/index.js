@@ -655,7 +655,9 @@ async function persistEventStations(dbClient, idReserva, stationIds, extraIds, g
      WHERE codigo IN (${placeholders})`,
     selectedIds
   );
-  const stations = new Map(stationRows.map((station) => [station.codigo, station]));
+  const stations = new Map(
+    stationRows.map((station) => [station.codigo, station])
+  );
   const missingExtras = extraIds.filter((id) => !stations.has(id));
   if (missingExtras.length > 0) {
     const extraPlaceholders = missingExtras.map(() => "?").join(", ");
@@ -666,51 +668,59 @@ async function persistEventStations(dbClient, idReserva, stationIds, extraIds, g
       missingExtras
     );
     const tariffsById = new Map(tariffs.map((tariff) => [tariff.id, tariff]));
-    const insertedExtras = await Promise.all(missingExtras.map(async (id) => {
-      const tariff = tariffsById.get(id);
-      if (!tariff) {
-        throw new Error(`No se encontr\xF3 la tarifa del adicional seleccionado: ${id}`);
-      }
-      const result = await dbClient.execute(
-        `INSERT INTO estacion (codigo, nombre, tipo_comida, descripcion, precio_por_persona)
+    const insertedExtras = await Promise.all(
+      missingExtras.map(async (id) => {
+        const tariff = tariffsById.get(id);
+        if (!tariff) {
+          throw new Error(
+            `No se encontr\xF3 la tarifa del adicional seleccionado: ${id}`
+          );
+        }
+        const result = await dbClient.execute(
+          `INSERT INTO estacion (codigo, nombre, tipo_comida, descripcion, precio_por_persona)
          VALUES (?, ?, 'extra', ?, ?)
          ON CONFLICT (codigo) DO UPDATE
          SET nombre = EXCLUDED.nombre,
              descripcion = EXCLUDED.descripcion,
              precio_por_persona = EXCLUDED.precio_por_persona
          RETURNING id_estacion, precio_por_persona`,
-        [
-          id,
-          tariff.label,
-          tariff.label,
-          Number(tariff.price_per_guest_cents) / 100
-        ]
-      );
-      if (!result.row) {
-        throw new Error(`No se pudo registrar el adicional seleccionado: ${id}`);
-      }
-      return {
-        codigo: id,
-        id_estacion: result.row.id_estacion,
-        precio_por_persona: result.row.precio_por_persona
-      };
-    }));
+          [
+            id,
+            tariff.label,
+            tariff.label,
+            Number(tariff.price_per_guest_cents) / 100
+          ]
+        );
+        if (!result.row) {
+          throw new Error(
+            `No se pudo registrar el adicional seleccionado: ${id}`
+          );
+        }
+        return {
+          codigo: id,
+          id_estacion: result.row.id_estacion,
+          precio_por_persona: result.row.precio_por_persona
+        };
+      })
+    );
     for (const station of insertedExtras) {
       stations.set(station.codigo, station);
     }
   }
-  await Promise.all(selectedIds.map(async (id) => {
-    const station = stations.get(id);
-    if (!station) {
-      throw new Error(`No se encontr\xF3 la estaci\xF3n seleccionada: ${id}`);
-    }
-    const subtotal = Number(station.precio_por_persona) * guests;
-    await dbClient.execute(
-      `INSERT INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado)
+  await Promise.all(
+    selectedIds.map(async (id) => {
+      const station = stations.get(id);
+      if (!station) {
+        throw new Error(`No se encontr\xF3 la estaci\xF3n seleccionada: ${id}`);
+      }
+      const subtotal = Number(station.precio_por_persona) * guests;
+      await dbClient.execute(
+        `INSERT INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado)
        VALUES (?, ?, ?)`,
-      [idReserva, station.id_estacion, subtotal]
-    );
-  }));
+        [idReserva, station.id_estacion, subtotal]
+      );
+    })
+  );
 }
 var EventsService = class {
   static async mapReservationRows(rows) {
@@ -749,7 +759,8 @@ var EventsService = class {
           if (tipo.includes("celia")) celiacos += d.cantidad_personas;
           else if (tipo.includes("vege")) vegetarianos += d.cantidad_personas;
           else if (tipo.includes("vega")) veganos += d.cantidad_personas;
-          else if (tipo.includes("hipertens")) hipertensos += d.cantidad_personas;
+          else if (tipo.includes("hipertens"))
+            hipertensos += d.cantidad_personas;
           else if (tipo.includes("alerg")) {
             if (d.observaciones) alergias.push(d.observaciones);
           }
@@ -841,7 +852,9 @@ var EventsService = class {
             "temp_hash"
           ]
         );
-        idCliente = Number(insertResult.row?.id_cliente ?? insertResult.lastInsertId);
+        idCliente = Number(
+          insertResult.row?.id_cliente ?? insertResult.lastInsertId
+        );
         if (!Number.isSafeInteger(idCliente) || idCliente <= 0) {
           throw new Error("PostgreSQL no devolvi\xF3 el ID del cliente creado.");
         }
@@ -873,9 +886,27 @@ var EventsService = class {
         seguroPesos
       ]
     );
-    const idReserva = Number(reservaResult.row?.id_reserva ?? reservaResult.lastInsertId);
+    const idReserva = Number(
+      reservaResult.row?.id_reserva ?? reservaResult.lastInsertId
+    );
     if (!Number.isSafeInteger(idReserva) || idReserva <= 0) {
       throw new Error("PostgreSQL no devolvi\xF3 el ID de la reserva creada.");
+    }
+    if (Array.isArray(body.stationIds)) {
+      for (const stationSlug of body.stationIds) {
+        const s = await dbClient.queryOne(
+          "SELECT id_estacion, precio_por_persona FROM estacion WHERE codigo = ?",
+          [stationSlug]
+        );
+        if (s) {
+          const subtotal = Number(s.precio_por_persona) * (body.guests || 50);
+          await dbClient.execute(
+            `INSERT INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado)
+             VALUES (?, ?, ?)`,
+            [idReserva, s.id_estacion, subtotal]
+          );
+        }
+      }
     }
     await persistEventStations(
       dbClient,
@@ -915,7 +946,12 @@ var EventsService = class {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
            VALUES (?, ?, ?, ?)`,
-          [idReserva, "Hipertensos", body.dietary.hipertensos, "Men\xFA bajo en sodio"]
+          [
+            idReserva,
+            "Hipertensos",
+            body.dietary.hipertensos,
+            "Men\xFA bajo en sodio"
+          ]
         );
       }
       if (body.dietary.alergias) {
@@ -1013,73 +1049,6 @@ var EventsService = class {
   }
 };
 
-// server/modules/events/events.controller.ts
-var EventsController = class {
-  static async list(_req, res) {
-    try {
-      const events = await EventsService.fetchAllEvents();
-      res.json({ events });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-  static async create(req, res) {
-    try {
-      const event = await EventsService.createEvent(req.body || {});
-      res.status(201).json({ event });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-  static async update(req, res) {
-    try {
-      const id = req.params.id;
-      if (!id) {
-        res.status(400).json({ error: "ID de reserva requerido" });
-        return;
-      }
-      const updates = req.body || {};
-      if (updates.paymentStatus === "SALDADO") {
-        if (req.user?.role !== "admin") {
-          res.status(403).json({
-            error: "Solo los administradores pueden registrar cobros de saldo."
-          });
-          return;
-        }
-      } else if (req.user?.role !== "admin" && req.user?.role !== "superadmin") {
-        res.status(403).json({ error: "No autorizado para modificar eventos." });
-        return;
-      }
-      await EventsService.updateEvent(id, updates);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-  static async myEvents(req, res) {
-    try {
-      if (!req.user) {
-        res.status(401).json({ error: "No autorizado" });
-        return;
-      }
-      const events = await EventsService.fetchAllEvents();
-      const filtered = events.filter((_e) => {
-        return true;
-      });
-      res.json({ events: filtered });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-};
-
-// server/modules/events/events.routes.ts
-var eventsRouter = createRouter();
-eventsRouter.get("/", EventsController.list);
-eventsRouter.post("/", EventsController.create);
-eventsRouter.patch("/:id", authGuard, EventsController.update);
-eventsRouter.get("/my-events", EventsController.myEvents);
-
 // shared/schemas/quotation.schema.ts
 import { z } from "zod";
 var GUEST_MIN = 50;
@@ -1110,13 +1079,12 @@ var quotationFormSchema = z.object({
 
 // server/modules/quotation/quotation.service.ts
 var QuotationService = class {
-  static async checkAvailability(date, excludeReservaId) {
+  static async checkAvailability(date, excludeReservaId, requestedGuests) {
     const dbClient = getDatabase();
     const query = excludeReservaId ? "SELECT count(*) as count, sum(cantidad_invitados) as total_guests FROM reserva WHERE fecha_evento = ? AND evento_cancelado = 0 AND id_reserva != ?" : "SELECT count(*) as count, sum(cantidad_invitados) as total_guests FROM reserva WHERE fecha_evento = ? AND evento_cancelado = 0";
     const params = excludeReservaId ? [date, excludeReservaId] : [date];
     const result = await dbClient.queryOne(query, params);
     const count = Number(result?.count || 0);
-
     const totalGuests = Number(result?.total_guests || 0);
     if (count === 0) {
       return { available: true, isConcurrent: false };
@@ -1128,7 +1096,9 @@ var QuotationService = class {
   }
   static async calculateQuotation(input) {
     const dbClient = getDatabase();
-    const tariffs = await dbClient.query("SELECT * FROM tarifas WHERE is_active = 1");
+    const tariffs = await dbClient.query(
+      "SELECT * FROM tarifas WHERE is_active = 1"
+    );
     const stations = await dbClient.query("SELECT * FROM estacion");
     const baseTariff = tariffs.find((t) => t.category === "base")?.price_per_guest_cents || 0;
     const insuranceCents = tariffs.find((t) => t.category === "insurance")?.fixed_cents || 0;
@@ -1136,7 +1106,9 @@ var QuotationService = class {
     for (const stationId of input.stationIds) {
       const station = stations.find((s) => s.codigo === stationId);
       if (station) {
-        stationsCentsPerGuest += Math.round(Number(station.precio_por_persona) * 100);
+        stationsCentsPerGuest += Math.round(
+          Number(station.precio_por_persona) * 100
+        );
       }
     }
     const perGuestCents = baseTariff + stationsCentsPerGuest;
