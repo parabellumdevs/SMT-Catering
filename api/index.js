@@ -739,7 +739,8 @@ var EventsService = class {
     if (!idCliente) {
       const insertResult = await dbClient.execute(
         `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
-         VALUES (?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?)
+         RETURNING id_cliente`,
         [
           body.clientName,
           `30-${Date.now().toString().slice(-8)}-1`,
@@ -748,7 +749,10 @@ var EventsService = class {
           "temp_hash"
         ]
       );
-      idCliente = Number(insertResult.lastInsertId);
+      idCliente = Number(insertResult.row?.id_cliente);
+      if (!Number.isSafeInteger(idCliente) || idCliente <= 0) {
+        throw new Error("PostgreSQL no devolvi\xF3 el ID del cliente creado.");
+      }
     }
     const totalPesos = (body.totalCents || 0) / 100;
     const seguroPesos = (body.insuranceCents || 0) / 100;
@@ -757,7 +761,8 @@ var EventsService = class {
         id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
         cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
         estado_evento, estado_pago, notas_cocina, monto_total, monto_seguro
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING id_reserva`,
       [
         idCliente,
         body.eventDate,
@@ -775,7 +780,10 @@ var EventsService = class {
         seguroPesos
       ]
     );
-    const idReserva = Number(reservaResult.lastInsertId);
+    const idReserva = Number(reservaResult.row?.id_reserva);
+    if (!Number.isSafeInteger(idReserva) || idReserva <= 0) {
+      throw new Error("PostgreSQL no devolvi\xF3 el ID de la reserva creada.");
+    }
     if (Array.isArray(body.stationIds)) {
       for (const stationSlug of body.stationIds) {
         const s = await dbClient.queryOne(
@@ -828,10 +836,18 @@ var EventsService = class {
       }
     }
     if (body.depositCents > 0) {
+      const isPaidInFull = body.paymentStatus === "SALDADO";
       await dbClient.execute(
         `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [idReserva, "SE\xD1A", body.depositCents / 100, 1, 0, "confirmado"]
+        [
+          idReserva,
+          isPaidInFull ? "TOTAL" : "SE\xD1A",
+          body.depositCents / 100,
+          1,
+          isPaidInFull ? 1 : 0,
+          "confirmado"
+        ]
       );
     }
     const all = await this.fetchAllEvents();
@@ -917,7 +933,9 @@ var EventsController = class {
       const updates = req.body || {};
       if (updates.paymentStatus === "SALDADO") {
         if (req.user?.role !== "admin") {
-          res.status(403).json({ error: "Solo los administradores pueden registrar cobros de saldo." });
+          res.status(403).json({
+            error: "Solo los administradores pueden registrar cobros de saldo."
+          });
           return;
         }
       } else if (req.user?.role !== "admin" && req.user?.role !== "superadmin") {
@@ -1649,6 +1667,316 @@ profileRouter.get("/profile", authGuard, requireRoles(["cliente"]), ProfileContr
 profileRouter.put("/profile", authGuard, requireRoles(["cliente"]), ProfileController.updateProfile);
 profileRouter.post("/change-password", authGuard, requireRoles(["cliente"]), ProfileController.changePassword);
 
+// server/modules/payments/payments.service.ts
+import { randomUUID } from "node:crypto";
+var PaymentError = class extends Error {
+  statusCode;
+  object;
+  constructor(message, statusCode = 400, object) {
+    super(message);
+    this.name = "PaymentError";
+    this.statusCode = statusCode;
+    this.object = object;
+  }
+};
+var DEPOSIT_PERCENT = 50;
+function getAccessToken() {
+  const accessToken = process.env.ACCESS_TOKEN_MP;
+  if (!accessToken) {
+    throw new PaymentError(
+      "La pasarela de Mercado Pago no est\xE1 configurada.",
+      503
+    );
+  }
+  return accessToken;
+}
+async function mercadoPagoRequest(path, init) {
+  const response = await fetch(`https://api.mercadopago.com${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${getAccessToken()}`,
+      "Content-Type": "application/json",
+      ...init?.headers
+    }
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = typeof body === "object" && body !== null && "message" in body && typeof body.message === "string" ? body.message : `Mercado Pago respondi\xF3 con HTTP ${response.status}.`;
+    throw new PaymentError(message, 502);
+  }
+  return body;
+}
+function normalizeAppOrigin(origin) {
+  let url;
+  try {
+    url = new URL(origin);
+  } catch {
+    throw new PaymentError(
+      "No se pudo determinar la URL de retorno del pago.",
+      400
+    );
+  }
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw new PaymentError("La URL de retorno del pago no es v\xE1lida.", 400);
+  }
+  return url.origin;
+}
+function buildReturnUrl(appOrigin, status) {
+  const url = new URL("/", appOrigin);
+  url.searchParams.set("mp_status", status);
+  return url.toString();
+}
+function validateReservation(input) {
+  const reservation = input?.reservation;
+  if (!reservation || typeof reservation.clientName !== "string" || !reservation.clientName.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(reservation.eventDate) || Number.isNaN(Date.parse(`${reservation.eventDate}T00:00:00`)) || !Number.isInteger(reservation.guests) || reservation.guests < 50 || reservation.guests > 120 || !Array.isArray(reservation.stationIds) || reservation.stationIds.length === 0 || !Array.isArray(reservation.extraIds) || (/* @__PURE__ */ new Set([...reservation.stationIds, ...reservation.extraIds])).size !== reservation.stationIds.length + reservation.extraIds.length || typeof reservation.kitchenNotes !== "string" || !reservation.dietary || typeof reservation.dietary !== "object" || !["deposit", "full"].includes(input.initialPayment)) {
+    throw new PaymentError(
+      "Los datos de la reserva est\xE1n incompletos o no son v\xE1lidos."
+    );
+  }
+}
+var PaymentsService = class {
+  static async ensureCheckoutTable() {
+    const db3 = getDatabase();
+    await db3.exec(`
+      CREATE TABLE IF NOT EXISTS mercado_pago_checkout (
+        external_reference TEXT PRIMARY KEY,
+        preference_id TEXT,
+        reservation_data JSONB NOT NULL,
+        expected_amount_cents INTEGER NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        payment_id TEXT UNIQUE,
+        event_id TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }
+  static async createPreference(input, appOrigin) {
+    validateReservation(input);
+    const db3 = getDatabase();
+    const tariffs = await db3.query(
+      `SELECT id, category, price_per_guest_cents, fixed_cents
+       FROM tarifas
+       WHERE is_active = 1`
+    );
+    const getSelectedPrice = (id, category) => {
+      const tariff = tariffs.find((item) => item.id === id);
+      if (tariff?.category !== category) {
+        throw new PaymentError(
+          `La tarifa "${id}" ya no est\xE1 disponible. Actualiz\xE1 la cotizaci\xF3n.`
+        );
+      }
+      return Number(tariff.price_per_guest_cents);
+    };
+    const selectedTariffs = [
+      ...input.reservation.stationIds.map(
+        (id) => getSelectedPrice(id, "station")
+      ),
+      ...input.reservation.extraIds.map((id) => getSelectedPrice(id, "extra"))
+    ];
+    const insuranceCents = tariffs.filter((tariff) => tariff.category === "insurance").reduce((sum, tariff) => sum + Number(tariff.fixed_cents || 0), 0);
+    const expectedTotalCents = selectedTariffs.reduce(
+      (sum, price) => sum + price * input.reservation.guests,
+      insuranceCents
+    );
+    const amountCents = input.initialPayment === "full" ? expectedTotalCents : Math.round(expectedTotalCents * DEPOSIT_PERCENT / 100);
+    if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
+      throw new PaymentError("El monto de la reserva no es v\xE1lido.");
+    }
+    const externalReference = randomUUID();
+    const paymentStatus = input.initialPayment === "full" ? "SALDADO" : "SALDO_PENDIENTE";
+    const reservation = {
+      ...input.reservation,
+      totalCents: expectedTotalCents,
+      insuranceCents,
+      depositCents: amountCents,
+      paymentStatus,
+      status: "Se\xF1ado / Confirmado",
+      cancelled: false
+    };
+    const origin = normalizeAppOrigin(appOrigin);
+    await this.ensureCheckoutTable();
+    await db3.execute(
+      `INSERT INTO mercado_pago_checkout
+        (external_reference, reservation_data, expected_amount_cents, status)
+       VALUES (?, ?, ?, 'pending')`,
+      [externalReference, JSON.stringify(reservation), amountCents]
+    );
+    try {
+      const preference = await mercadoPagoRequest("/checkout/preferences", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            {
+              id: externalReference,
+              title: `Reserva de evento ${reservation.eventDate}`,
+              quantity: 1,
+              unit_price: amountCents / 100,
+              currency_id: "ARS"
+            }
+          ],
+          external_reference: externalReference,
+          back_urls: {
+            success: buildReturnUrl(origin, "success"),
+            pending: buildReturnUrl(origin, "pending"),
+            failure: buildReturnUrl(origin, "failure")
+          },
+          auto_return: "approved"
+        })
+      });
+      if (!preference.id || !preference.init_point) {
+        throw new PaymentError(
+          "Mercado Pago no devolvi\xF3 una URL de pago.",
+          502
+        );
+      }
+      await db3.execute(
+        `UPDATE mercado_pago_checkout
+         SET preference_id = ?
+         WHERE external_reference = ?`,
+        [preference.id, externalReference]
+      );
+      return { initPoint: preference.init_point, externalReference };
+    } catch (error) {
+      await db3.execute(
+        `UPDATE mercado_pago_checkout
+         SET status = 'failed'
+         WHERE external_reference = ?`,
+        [externalReference]
+      );
+      throw error;
+    }
+  }
+  static async confirmPayment(paymentId, externalReference) {
+    if (!/^\d+$/.test(paymentId) || !externalReference) {
+      throw new PaymentError(
+        "La informaci\xF3n de retorno del pago no es v\xE1lida."
+      );
+    }
+    const db3 = getDatabase();
+    await this.ensureCheckoutTable();
+    const checkout = await db3.queryOne(
+      `SELECT preference_id, reservation_data, expected_amount_cents, status, payment_id, event_id
+       FROM mercado_pago_checkout
+       WHERE external_reference = ?`,
+      [externalReference]
+    );
+    if (!checkout) {
+      throw new PaymentError(
+        "No se encontr\xF3 la reserva asociada al pago.",
+        404
+      );
+    }
+    if (checkout.status === "completed" && checkout.event_id) {
+      return { eventId: checkout.event_id };
+    }
+    if (checkout.status !== "pending") {
+      throw new PaymentError(
+        "Este pago ya se est\xE1 procesando o no puede confirmarse.",
+        409
+      );
+    }
+    const payment = await mercadoPagoRequest(
+      `/v1/payments/${encodeURIComponent(paymentId)}`,
+      { method: "GET" }
+    );
+    const matchesCheckout = payment.status === "approved" && payment.currency_id === "ARS" && payment.external_reference === externalReference && Math.round(payment.transaction_amount * 100) === Number(checkout.expected_amount_cents);
+    if (!matchesCheckout) {
+      throw new PaymentError(
+        "Mercado Pago todav\xEDa no confirma el pago de esta reserva.",
+        402,
+        matchesCheckout
+      );
+    }
+    const claim = await db3.execute(
+      `UPDATE mercado_pago_checkout
+       SET status = 'processing', payment_id = ?
+       WHERE external_reference = ? AND status = 'pending'`,
+      [paymentId, externalReference]
+    );
+    if (claim.changes === 0) {
+      const latest = await db3.queryOne(
+        `SELECT status, event_id
+         FROM mercado_pago_checkout
+         WHERE external_reference = ?`,
+        [externalReference]
+      );
+      if (latest?.status === "completed" && latest.event_id) {
+        return { eventId: latest.event_id };
+      }
+      throw new PaymentError(
+        "El pago ya se est\xE1 procesando. Volv\xE9 a consultar en unos segundos.",
+        409
+      );
+    }
+    try {
+      const event = await EventsService.createEvent(checkout.reservation_data);
+      if (!event?.id) {
+        throw new Error(
+          "No se pudo crear la reserva despu\xE9s del pago aprobado."
+        );
+      }
+      await db3.execute(
+        `UPDATE mercado_pago_checkout
+         SET status = 'completed', event_id = ?
+         WHERE external_reference = ?`,
+        [event.id, externalReference]
+      );
+      return { eventId: event.id };
+    } catch (error) {
+      await db3.execute(
+        `UPDATE mercado_pago_checkout
+         SET status = 'pending', payment_id = NULL
+         WHERE external_reference = ? AND status = 'processing'`,
+        [externalReference]
+      );
+      throw error;
+    }
+  }
+};
+
+// server/modules/payments/payments.controller.ts
+function getOrigin(req) {
+  const origin = req.headers.origin;
+  if (typeof origin === "string") return origin;
+  if (Array.isArray(origin)) return origin[0];
+  return process.env.APP_URL;
+}
+function respondWithError(res, error) {
+  if (error instanceof PaymentError) {
+    res.status(error.statusCode).json({ error: error.message });
+    return;
+  }
+  console.error("Error en la integraci\xF3n de Mercado Pago:", error);
+  res.status(500).json({ error: "No se pudo completar la operaci\xF3n de pago." });
+}
+var PaymentsController = class {
+  static async createPreference(req, res) {
+    try {
+      const result = await PaymentsService.createPreference(req.body, getOrigin(req) || "");
+      res.json(result);
+    } catch (error) {
+      respondWithError(res, error);
+    }
+  }
+  static async confirm(req, res) {
+    try {
+      const { paymentId, externalReference } = req.body || {};
+      const result = await PaymentsService.confirmPayment(
+        String(paymentId || ""),
+        String(externalReference || "")
+      );
+      res.json(result);
+    } catch (error) {
+      respondWithError(res, error);
+    }
+  }
+};
+
+// server/modules/payments/payments.routes.ts
+var paymentsRouter = createRouter();
+paymentsRouter.post("/preference", PaymentsController.createPreference);
+paymentsRouter.post("/confirm", PaymentsController.confirm);
+
 // server/app.ts
 function parseCookies(cookieHeader) {
   const list = {};
@@ -1695,7 +2023,8 @@ var mountedRoutes = [
   { prefix: "/api/production", router: productionRouter },
   { prefix: "/api/tariffs", router: tariffsRouter },
   { prefix: "/api/users", router: usersRouter },
-  { prefix: "/api/client", router: profileRouter }
+  { prefix: "/api/client", router: profileRouter },
+  { prefix: "/api/payments", router: paymentsRouter }
 ];
 async function app(req, res) {
   if (req.method === "OPTIONS") {

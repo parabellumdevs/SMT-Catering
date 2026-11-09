@@ -32,11 +32,18 @@ export class EventsController {
 
       if (updates.paymentStatus === "SALDADO") {
         if (req.user?.role !== "admin") {
-          res.status(403).json({ error: "Solo los administradores pueden registrar cobros de saldo." });
+          res.status(403).json({
+            error: "Solo los administradores pueden registrar cobros de saldo.",
+          });
           return;
         }
-      } else if (req.user?.role !== "admin" && req.user?.role !== "superadmin") {
-        res.status(403).json({ error: "No autorizado para modificar eventos." });
+      } else if (
+        req.user?.role !== "admin" &&
+        req.user?.role !== "superadmin"
+      ) {
+        res
+          .status(403)
+          .json({ error: "No autorizado para modificar eventos." });
         return;
       }
 

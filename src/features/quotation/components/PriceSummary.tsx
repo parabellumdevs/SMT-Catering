@@ -1,29 +1,121 @@
 import { CalendarCheck, ShieldCheck, CreditCard, Landmark, FileText } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
-import { DEPOSIT_PERCENT, ESTACIONES_GASTRONOMICAS } from '@/lib/constants'
+import { DEPOSIT_PERCENT, ESTACIONES_GASTRONOMICAS, type EstacionId } from '@/lib/constants'
 import { ConfirmEventModal } from '@/features/quotation/components/ConfirmEventModal'
 import { useQuotationCalculator } from '@/features/quotation/hooks/useQuotationCalculator'
 import { useTariffStore } from '@/stores/tariffStore'
 import { formatCurrency } from '@/lib/utils'
 import { useQuotationStore } from '@/stores/quotationStore'
+import type { DietaryRequirement } from '@/types/domain'
 
 /** Etiquetas del medio de pago elegido, para reflejarlas en el modal de confirmación. */
-const PAYMENT_METHOD_LABELS = {
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   transferencia: 'Transferencia bancaria',
   factura: 'Factura A',
   tarjeta: 'Tarjeta de crédito',
 } as const
 
+type PaymentMethod = 'transferencia' | 'factura' | 'tarjeta'
+const PENDING_CHECKOUT_KEY = 'smt-pending-mercado-pago-checkout'
+
 export function PriceSummaryPanel() {
+  const location = useLocation()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<'transferencia' | 'factura' | 'tarjeta'>('transferencia')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transferencia')
   
   const guests = useQuotationStore((s) => s.guests)
   const eventDate = useQuotationStore((s) => s.eventDate)
   const stationIds = useQuotationStore((s) => s.stationIds)
   const tariffs = useTariffStore((s) => s.tariffs)
+
+  useEffect(() => {
+    const returnStatus = new URLSearchParams(location.search).get('mp_status')
+    if (!returnStatus) return
+
+    setPaymentMethod('tarjeta')
+    setConfirmOpen(true)
+
+    try {
+      const saved = sessionStorage.getItem(PENDING_CHECKOUT_KEY)
+      if (!saved) return
+
+      const parsed: unknown = JSON.parse(saved)
+      if (
+        typeof parsed !== 'object'
+        || parsed === null
+        || !('eventData' in parsed)
+        || typeof parsed.eventData !== 'object'
+        || parsed.eventData === null
+      ) {
+        return
+      }
+
+      const reservation = parsed.eventData
+      if (
+        !('guests' in reservation)
+        || typeof reservation.guests !== 'number'
+        || !('eventDate' in reservation)
+        || typeof reservation.eventDate !== 'string'
+        || !('stationIds' in reservation)
+        || !Array.isArray(reservation.stationIds)
+        || !('extraIds' in reservation)
+        || !Array.isArray(reservation.extraIds)
+        || !('dietary' in reservation)
+        || typeof reservation.dietary !== 'object'
+        || reservation.dietary === null
+      ) {
+        return
+      }
+
+      const restoredStationIds = reservation.stationIds.filter(
+        (id): id is EstacionId => typeof id === 'string'
+          && ESTACIONES_GASTRONOMICAS.some((station) => station.id === id),
+      )
+      const savedDietary = reservation.dietary
+      if (
+        restoredStationIds.length !== reservation.stationIds.length
+        || !('celiacos' in savedDietary)
+        || typeof savedDietary.celiacos !== 'number'
+        || !('vegetarianos' in savedDietary)
+        || typeof savedDietary.vegetarianos !== 'number'
+        || !('veganos' in savedDietary)
+        || typeof savedDietary.veganos !== 'number'
+        || !('alergias' in savedDietary)
+        || typeof savedDietary.alergias !== 'string'
+      ) {
+        return
+      }
+
+      useQuotationStore.setState({
+        guests: reservation.guests,
+        eventDate: reservation.eventDate,
+        stationIds: restoredStationIds,
+        extraIds: reservation.extraIds.filter((id): id is string => typeof id === 'string'),
+        dietary: {
+          celiacos: savedDietary.celiacos,
+          vegetarianos: savedDietary.vegetarianos,
+          veganos: savedDietary.veganos,
+          alergias: savedDietary.alergias,
+        } satisfies DietaryRequirement,
+        startTime: 'startTime' in reservation && typeof reservation.startTime === 'string'
+          ? reservation.startTime
+          : undefined,
+        locationAddress: 'locationAddress' in reservation
+          && typeof reservation.locationAddress === 'string'
+          ? reservation.locationAddress
+          : '',
+        locationDistanceKm: 'distanceKm' in reservation
+          && typeof reservation.distanceKm === 'number'
+          ? reservation.distanceKm
+          : null,
+      })
+    } catch (error) {
+      console.error('No se pudo restaurar la cotización al volver de Mercado Pago:', error)
+    }
+  }, [location.search])
   
   // 💡 Obtenemos insuranceCents del calculador
   const { totalCents, depositCents, balanceCents, insuranceCents } = useQuotationCalculator()
@@ -171,6 +263,7 @@ export function PriceSummaryPanel() {
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         paymentMethodLabel={PAYMENT_METHOD_LABELS[paymentMethod]}
+        paymentMethod={paymentMethod}
       />
     </aside>
   )

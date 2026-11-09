@@ -104,7 +104,8 @@ export class EventsService {
     if (!idCliente) {
       const insertResult = await dbClient.execute(
         `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
-         VALUES (?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?)
+         RETURNING id_cliente`,
         [
           body.clientName,
           `30-${Date.now().toString().slice(-8)}-1`,
@@ -113,7 +114,10 @@ export class EventsService {
           "temp_hash",
         ],
       );
-      idCliente = Number(insertResult.lastInsertId);
+      idCliente = Number(insertResult.row?.id_cliente);
+      if (!Number.isSafeInteger(idCliente) || idCliente <= 0) {
+        throw new Error("PostgreSQL no devolvió el ID del cliente creado.");
+      }
     }
 
     // 2. Reserva
@@ -125,7 +129,8 @@ export class EventsService {
         id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
         cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
         estado_evento, estado_pago, notas_cocina, monto_total, monto_seguro
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING id_reserva`,
       [
         idCliente,
         body.eventDate,
@@ -144,7 +149,10 @@ export class EventsService {
       ],
     );
 
-    const idReserva = Number(reservaResult.lastInsertId);
+    const idReserva = Number(reservaResult.row?.id_reserva);
+    if (!Number.isSafeInteger(idReserva) || idReserva <= 0) {
+      throw new Error("PostgreSQL no devolvió el ID de la reserva creada.");
+    }
 
     // 3. Detalle de Estaciones
     if (Array.isArray(body.stationIds)) {
@@ -203,10 +211,18 @@ export class EventsService {
 
     // 5. Pago inicial (seña)
     if (body.depositCents > 0) {
+      const isPaidInFull = body.paymentStatus === "SALDADO";
       await dbClient.execute(
         `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [idReserva, "SEÑA", body.depositCents / 100, 1, 0, "confirmado"],
+        [
+          idReserva,
+          isPaidInFull ? "TOTAL" : "SEÑA",
+          body.depositCents / 100,
+          1,
+          isPaidInFull ? 1 : 0,
+          "confirmado",
+        ],
       );
     }
 
