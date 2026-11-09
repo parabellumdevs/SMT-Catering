@@ -645,6 +645,73 @@ authRouter.post("/forgot-password", AuthController.forgotPassword);
 authRouter.post("/reset-password", AuthController.resetPassword);
 
 // server/modules/events/events.service.ts
+async function persistEventStations(dbClient, idReserva, stationIds, extraIds, guests) {
+  const selectedIds = [.../* @__PURE__ */ new Set([...stationIds, ...extraIds])];
+  if (selectedIds.length === 0) return;
+  const placeholders = selectedIds.map(() => "?").join(", ");
+  const stationRows = await dbClient.query(
+    `SELECT codigo, id_estacion, precio_por_persona
+     FROM estacion
+     WHERE codigo IN (${placeholders})`,
+    selectedIds
+  );
+  const stations = new Map(stationRows.map((station) => [station.codigo, station]));
+  const missingExtras = extraIds.filter((id) => !stations.has(id));
+  if (missingExtras.length > 0) {
+    const extraPlaceholders = missingExtras.map(() => "?").join(", ");
+    const tariffs = await dbClient.query(
+      `SELECT id, label, price_per_guest_cents
+       FROM tarifas
+       WHERE category = 'extra' AND is_active = 1 AND id IN (${extraPlaceholders})`,
+      missingExtras
+    );
+    const tariffsById = new Map(tariffs.map((tariff) => [tariff.id, tariff]));
+    const insertedExtras = await Promise.all(missingExtras.map(async (id) => {
+      const tariff = tariffsById.get(id);
+      if (!tariff) {
+        throw new Error(`No se encontr\xF3 la tarifa del adicional seleccionado: ${id}`);
+      }
+      const result = await dbClient.execute(
+        `INSERT INTO estacion (codigo, nombre, tipo_comida, descripcion, precio_por_persona)
+         VALUES (?, ?, 'extra', ?, ?)
+         ON CONFLICT (codigo) DO UPDATE
+         SET nombre = EXCLUDED.nombre,
+             descripcion = EXCLUDED.descripcion,
+             precio_por_persona = EXCLUDED.precio_por_persona
+         RETURNING id_estacion, precio_por_persona`,
+        [
+          id,
+          tariff.label,
+          tariff.label,
+          Number(tariff.price_per_guest_cents) / 100
+        ]
+      );
+      if (!result.row) {
+        throw new Error(`No se pudo registrar el adicional seleccionado: ${id}`);
+      }
+      return {
+        codigo: id,
+        id_estacion: result.row.id_estacion,
+        precio_por_persona: result.row.precio_por_persona
+      };
+    }));
+    for (const station of insertedExtras) {
+      stations.set(station.codigo, station);
+    }
+  }
+  await Promise.all(selectedIds.map(async (id) => {
+    const station = stations.get(id);
+    if (!station) {
+      throw new Error(`No se encontr\xF3 la estaci\xF3n seleccionada: ${id}`);
+    }
+    const subtotal = Number(station.precio_por_persona) * guests;
+    await dbClient.execute(
+      `INSERT INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado)
+       VALUES (?, ?, ?)`,
+      [idReserva, station.id_estacion, subtotal]
+    );
+  }));
+}
 var EventsService = class {
   static async fetchAllEvents() {
     const dbClient = getDatabase();
@@ -784,22 +851,13 @@ var EventsService = class {
     if (!Number.isSafeInteger(idReserva) || idReserva <= 0) {
       throw new Error("PostgreSQL no devolvi\xF3 el ID de la reserva creada.");
     }
-    if (Array.isArray(body.stationIds)) {
-      for (const stationSlug of body.stationIds) {
-        const s = await dbClient.queryOne(
-          "SELECT id_estacion, precio_por_persona FROM estacion WHERE codigo = ?",
-          [stationSlug]
-        );
-        if (s) {
-          const subtotal = Number(s.precio_por_persona) * (body.guests || 50);
-          await dbClient.execute(
-            `INSERT INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado)
-             VALUES (?, ?, ?)`,
-            [idReserva, s.id_estacion, subtotal]
-          );
-        }
-      }
-    }
+    await persistEventStations(
+      dbClient,
+      idReserva,
+      Array.isArray(body.stationIds) ? body.stationIds : [],
+      Array.isArray(body.extraIds) ? body.extraIds : [],
+      body.guests || 50
+    );
     if (body.dietary) {
       if (body.dietary.celiacos > 0) {
         await dbClient.execute(

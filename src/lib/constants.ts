@@ -63,8 +63,19 @@ export function obtenerEstacionPorId(id: EstacionId): InfoEstacion {
 
 // Aliases en camelCase / inglés para compatibilidad
 export const GASTRONOMIC_STATIONS = ESTACIONES_GASTRONOMICAS
-export const stationById = (id: EstacionId) => {
-  const s = obtenerEstacionPorId(id)
+export const stationById = (id: string) => {
+  const s = ESTACIONES_GASTRONOMICAS.find((station) => station.id === id)
+  if (!s) {
+    return {
+      id,
+      nombre: id,
+      descripcion: '',
+      precioPorComensalCentavos: 0,
+      name: id,
+      description: '',
+      pricePerGuestCents: 0,
+    }
+  }
   return {
     ...s,
     name: s.nombre,
