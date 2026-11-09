@@ -102,46 +102,48 @@ export function ConfirmEventModal({ open, onOpenChange, paymentMethodLabel }: Pr
     submitting || !clientField.value.trim() || !eventDate || isTooSoon || (isTransfer && !receiptFile)
 
   const handleConfirm = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (isSubmitDisabled) return
+  e.preventDefault()
+  if (isSubmitDisabled) return
 
-    setSubmitting(true)
-    try {
-      const receipt = isTransfer && receiptFile
-        ? {
-            name: receiptFile.name,
-            mimeType: receiptFile.type,
-            sizeBytes: receiptFile.size,
-            dataUrl: await readAsDataUrl(receiptFile),
-          }
-        : undefined
+  setSubmitting(true)
+  try {
+    const receipt = isTransfer && receiptFile
+      ? {
+          name: receiptFile.name,
+          mimeType: receiptFile.type,
+          sizeBytes: receiptFile.size,
+          dataUrl: await readAsDataUrl(receiptFile),
+        }
+      : undefined
 
-      const paymentStatus: PaymentStatus = isTransfer ? 'SEÑA_PENDIENTE' : 'SALDO_PENDIENTE'
+    const paymentStatus: PaymentStatus = isTransfer ? 'SEÑA_A_CONFIRMAR' : 'SALDO_PENDIENTE'
 
-      const newRecord = addEvent({
-        clientName: clientField.value.trim(),
-        eventDate,
-        guests,
-        stationIds,
-        status: isTransfer ? 'Seña pendiente' : 'Señado / Confirmado',
-        paymentStatus,
-        totalCents,
-        depositCents,
-        insuranceCents,
-        dietary,
-        kitchenNotes: kitchenNotes.trim(),
-        cancelled: false,
-        receipt,
-        depositDueAt: isTransfer ? addHours(new Date(), DEPOSIT_HOLD_HOURS).toISOString() : undefined,
-      })
-      setCreatedEventId(newRecord.id)
-      resetQuotation()
-    } catch {
-      setReceiptError('No pudimos leer el archivo. Probá adjuntarlo de nuevo.')
-    } finally {
-      setSubmitting(false)
-    }
+    // Esperamos la resolución del evento creado en PostgreSQL
+    const newRecord = await addEvent({
+      clientName: clientField.value.trim(),
+      eventDate,
+      guests,
+      stationIds,
+      status: isTransfer ? 'Seña a confirmar' : 'Señado / Confirmado',
+      paymentStatus,
+      totalCents,
+      depositCents,
+      insuranceCents,
+      dietary,
+      kitchenNotes: kitchenNotes.trim(),
+      cancelled: false,
+      receipt,
+      depositDueAt: isTransfer ? addHours(new Date(), DEPOSIT_HOLD_HOURS).toISOString() : undefined,
+    })
+
+    setCreatedEventId(newRecord.id)
+    resetQuotation()
+  } catch {
+    setReceiptError('No pudimos registrar la reserva. Probá nuevamente.')
+  } finally {
+    setSubmitting(false)
   }
+}
 
   const handleClose = () => {
     setCreatedEventId(null)

@@ -1,16 +1,44 @@
+
 import { getDatabase } from "../../db/client.ts";
 
 export class EventsService {
-  static async fetchAllEvents() {
+  private static columnsChecked = false;
+
+  /**
+   * Verifica y crea las columnas necesarias para almacenar
+   * comprobantes de transferencia y sus observaciones.
+   */
+  private static async ensureColumnsExist(): Promise<void> {
+    if (this.columnsChecked) return;
+
     const dbClient = getDatabase();
+
+    await dbClient.exec(`
+      ALTER TABLE pago
+      ADD COLUMN IF NOT EXISTS comprobante_url TEXT
+    `);
+
+    await dbClient.exec(`
+      ALTER TABLE pago
+      ADD COLUMN IF NOT EXISTS observaciones TEXT
+    `);
+
+    this.columnsChecked = true;
+  }
+
+  static async fetchAllEvents() {
+    await this.ensureColumnsExist();
+
+    const dbClient = getDatabase();
+
     const rows = await dbClient.query(
-      `SELECT
+      `SELECT DISTINCT ON (r.id_reserva)
         r.*,
         c.razon_social as cliente_empresa,
         c.nombre_completo as contacto
       FROM reserva r
       JOIN cliente c ON c.id_cliente = r.id_cliente
-      ORDER BY r.fecha_evento ASC`,
+      ORDER BY r.id_reserva, r.fecha_evento ASC`,
     );
 
     const events = await Promise.all(
@@ -20,19 +48,19 @@ export class EventsService {
             `SELECT e.codigo
              FROM detalle_reserva_estacion dre
              JOIN estacion e ON e.id_estacion = dre.id_estacion
-             WHERE dre.id_reserva = ?`,
+             WHERE dre.id_reserva = $1`,
             [r.id_reserva],
           ),
           dbClient.query(
             `SELECT tipo_restriccion, cantidad_personas, observaciones
              FROM restriccion_alimentaria
-             WHERE id_reserva = ?`,
+             WHERE id_reserva = $1`,
             [r.id_reserva],
           ),
           dbClient.query(
             `SELECT tipo_pago, monto, estado
              FROM pago
-             WHERE id_reserva = ? AND estado = 'confirmado'`,
+             WHERE id_reserva = $1 AND estado = 'confirmado'`,
             [r.id_reserva],
           ),
         ]);
@@ -46,6 +74,7 @@ export class EventsService {
 
         for (const d of dietaryRows) {
           const tipo = (d.tipo_restriccion || "").toLowerCase();
+
           if (tipo.includes("celia")) celiacos += d.cantidad_personas;
           else if (tipo.includes("vege")) vegetarianos += d.cantidad_personas;
           else if (tipo.includes("vega")) veganos += d.cantidad_personas;
@@ -55,8 +84,13 @@ export class EventsService {
         }
 
         let depositPesos = 0;
+
         for (const p of pagos) {
-          if (p.tipo_pago === "SEÑA" || p.tipo_pago === "TOTAL" || p.tipo_pago === "SALDO") {
+          if (
+            p.tipo_pago === "SEÑA" ||
+            p.tipo_pago === "TOTAL" ||
+            p.tipo_pago === "SALDO"
+          ) {
             depositPesos += Number(p.monto) || 0;
           }
         }
@@ -93,18 +127,39 @@ export class EventsService {
   }
 
   static async createEvent(body: any) {
+    await this.ensureColumnsExist();
+
     const dbClient = getDatabase();
+
+    // Evaluar si incluye comprobante o transferencia
+    const hasReceipt = Boolean(body.receipt && body.receipt.dataUrl);
+
+const isTransfer =
+  hasReceipt ||
+  body.paymentStatus === "SEÑA_PENDIENTE" ||
+  ["Seña pendiente", "Seña a confirmar"].includes(body.status);
+
+const estadoEvento = isTransfer
+  ? "Seña a confirmar"
+  : (body.status || "Señado / Confirmado");
+
+const estadoPago = isTransfer
+  ? "SEÑA_PENDIENTE"
+  : (body.paymentStatus || "SALDO_PENDIENTE");
 
     // 1. Cliente B2B (obtener o crear)
     let cliente = await dbClient.queryOne(
-      "SELECT id_cliente FROM cliente WHERE razon_social = ?",
+      "SELECT id_cliente FROM cliente WHERE razon_social = $1",
       [body.clientName],
     );
+
     let idCliente = cliente?.id_cliente;
+
     if (!idCliente) {
-      const insertResult = await dbClient.execute(
+      const insertClienteResult = await dbClient.query(
         `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
-         VALUES (?, ?, ?, ?, ?)`,
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id_cliente`,
         [
           body.clientName,
           `30-${Date.now().toString().slice(-8)}-1`,
@@ -113,19 +168,21 @@ export class EventsService {
           "temp_hash",
         ],
       );
-      idCliente = Number(insertResult.lastInsertId);
+
+      idCliente = insertClienteResult[0]?.id_cliente;
     }
 
     // 2. Reserva
     const totalPesos = (body.totalCents || 0) / 100;
     const seguroPesos = (body.insuranceCents || 0) / 100;
 
-    const reservaResult = await dbClient.execute(
+    const reservaResult = await dbClient.query(
       `INSERT INTO reserva (
         id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
         cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
         estado_evento, estado_pago, notas_cocina, monto_total, monto_seguro
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING id_reserva`,
       [
         idCliente,
         body.eventDate,
@@ -136,28 +193,34 @@ export class EventsService {
         body.locationAddress || "CABA",
         body.distanceKm || 10.0,
         0,
-        body.status || "Señado / Confirmado",
-        body.paymentStatus || "SALDO_PENDIENTE",
+        estadoEvento,
+        estadoPago,
         body.kitchenNotes || "",
         totalPesos,
         seguroPesos,
       ],
     );
 
-    const idReserva = Number(reservaResult.lastInsertId);
+    const idReserva = reservaResult[0]?.id_reserva;
+
+    if (!idReserva) {
+      throw new Error("No se pudo obtener el ID de la reserva insertada.");
+    }
 
     // 3. Detalle de Estaciones
-    if (Array.isArray(body.stationIds)) {
+    if (Array.isArray(body.stationIds) && body.stationIds.length > 0) {
       for (const stationSlug of body.stationIds) {
         const s = await dbClient.queryOne(
-          "SELECT id_estacion, precio_por_persona FROM estacion WHERE codigo = ?",
+          "SELECT id_estacion, precio_por_persona FROM estacion WHERE codigo = $1",
           [stationSlug],
         );
+
         if (s) {
           const subtotal = Number(s.precio_por_persona) * (body.guests || 50);
+
           await dbClient.execute(
             `INSERT INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado)
-             VALUES (?, ?, ?)`,
+             VALUES ($1, $2, $3)`,
             [idReserva, s.id_estacion, subtotal],
           );
         }
@@ -169,14 +232,15 @@ export class EventsService {
       if (body.dietary.celiacos > 0) {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
-           VALUES (?, ?, ?, ?)`,
+           VALUES ($1, $2, $3, $4)`,
           [idReserva, "Celiaquía", body.dietary.celiacos, "Menú celíaco"],
         );
       }
+
       if (body.dietary.vegetarianos > 0) {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
-           VALUES (?, ?, ?, ?)`,
+           VALUES ($1, $2, $3, $4)`,
           [
             idReserva,
             "Vegetarianos",
@@ -185,32 +249,53 @@ export class EventsService {
           ],
         );
       }
+
       if (body.dietary.veganos > 0) {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
-           VALUES (?, ?, ?, ?)`,
+           VALUES ($1, $2, $3, $4)`,
           [idReserva, "Veganos", body.dietary.veganos, "Menú vegano"],
         );
       }
+
       if (body.dietary.alergias) {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
-           VALUES (?, ?, ?, ?)`,
+           VALUES ($1, $2, $3, $4)`,
           [idReserva, "Alergias", 1, body.dietary.alergias],
         );
       }
     }
 
-    // 5. Pago inicial (seña)
-    if (body.depositCents > 0) {
+    // 5. Pago inicial / Comprobante
+    if (body.depositCents > 0 || hasReceipt) {
+      const montoDeposito = (body.depositCents || 0) / 100;
+      const estadoPagoTabla = hasReceipt ? "pendiente" : "confirmado";
+
+      const observacionesComprobante = hasReceipt
+        ? `Comprobante: ${body.receipt.name} (${body.receipt.mimeType})`
+        : null;
+
       await dbClient.execute(
-        `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [idReserva, "SEÑA", body.depositCents / 100, 1, 0, "confirmado"],
+        `INSERT INTO pago (
+          id_reserva, tipo_pago, monto, pago_online, pago_completo, estado,
+          comprobante_url, observaciones
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          idReserva,
+          "SEÑA",
+          montoDeposito,
+          1,
+          0,
+          estadoPagoTabla,
+          body.receipt?.dataUrl || null,
+          observacionesComprobante,
+        ],
       );
     }
 
     const all = await this.fetchAllEvents();
+
     return all.find((e: any) => e.id === `EV-${idReserva}`);
   }
 
@@ -231,14 +316,14 @@ export class EventsService {
     await dbClient.execute(
       `UPDATE reserva
        SET
-         estado_evento = COALESCE(?, estado_evento),
-         estado_pago = COALESCE(?, estado_pago),
-         notas_cocina = COALESCE(?, notas_cocina),
+         estado_evento = COALESCE($1, estado_evento),
+         estado_pago = COALESCE($2, estado_pago),
+         notas_cocina = COALESCE($3, notas_cocina),
          fecha_actualizacion = CURRENT_TIMESTAMP,
-         fecha_evento = COALESCE(?, fecha_evento),
-         hora_inicio = COALESCE(?, hora_inicio),
-         evento_cancelado = COALESCE(?, evento_cancelado)
-       WHERE id_reserva = ?`,
+         fecha_evento = COALESCE($4, fecha_evento),
+         hora_inicio = COALESCE($5, hora_inicio),
+         evento_cancelado = COALESCE($6, evento_cancelado)
+       WHERE id_reserva = $7`,
       [
         updates.status ?? null,
         updates.paymentStatus ?? null,
@@ -249,32 +334,5 @@ export class EventsService {
         idReserva,
       ],
     );
-
-    // Si se salda el evento, registrar el pago del saldo restante en la tabla pago
-    if (updates.paymentStatus === "SALDADO") {
-      const res = await dbClient.queryOne<{ monto_total: number | string }>(
-        `SELECT monto_total FROM reserva WHERE id_reserva = ?`,
-        [idReserva],
-      );
-      if (res) {
-        const montoTotal = Number(res.monto_total) || 0;
-        const pagosRows = await dbClient.query<{ monto: number | string }>(
-          `SELECT monto FROM pago WHERE id_reserva = ? AND estado = 'confirmado'`,
-          [idReserva],
-        );
-        let yaAbonado = 0;
-        for (const p of pagosRows) {
-          yaAbonado += Number(p.monto) || 0;
-        }
-        const saldoRemanente = Math.max(0, montoTotal - yaAbonado);
-        if (saldoRemanente > 0) {
-          await dbClient.execute(
-            `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [idReserva, "SALDO", saldoRemanente, 1, 1, "confirmado"],
-          );
-        }
-      }
-    }
   }
 }

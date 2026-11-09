@@ -17,10 +17,20 @@ type EventTab = 'proximos' | 'pasados' | 'cancelados'
  * Módulo 2 — Dashboard Centralizado de Eventos y Costos.
  */
 export function DashboardPage() {
-  const { data: events = [], isLoading, refetch } = useEvents()
+  const { data: rawEvents = [], isLoading, refetch } = useEvents()
   const [currentTab, setCurrentTab] = useState<EventTab>('proximos')
 
-  // Filtrado exclusivo por pestaña (Próximos / Pasados / Cancelados)
+  // 1. Desduplicación estricta por ID único para evitar filas repetidas
+  const events = useMemo(() => {
+    const seen = new Set<string>()
+    return rawEvents.filter((e) => {
+      if (!e || !e.id || seen.has(e.id)) return false
+      seen.add(e.id)
+      return true
+    })
+  }, [rawEvents])
+
+  // 2. Filtrado por pestaña (Próximos / Pasados / Cancelados)
   const visible = useMemo(() => {
     return events.filter((e) => {
       const d = daysUntil(e.eventDate)
@@ -50,16 +60,14 @@ export function DashboardPage() {
     }
   }
 
-  const handleCancelEvent = async (
-    eventId: string,
-  ) => {
+  const handleCancelEvent = async (eventId: string) => {
     try {
       await api.patch(`/api/events/${eventId}`, {
         cancelled: 1,
       })
       await refetch()
     } catch (error) {
-      console.error('Fallo en la cancelacion:', error)
+      console.error('Fallo en la cancelación:', error)
     }
   }
 
@@ -67,7 +75,7 @@ export function DashboardPage() {
     const target = events.find((e) => e.id === eventId)
     if (target) {
       const now = new Date()
-      // Otro evento vigente en la misma fecha: confirmado, o con seña pendiente dentro de su plazo.
+      // Detectar si existe otra reserva vigente para el mismo día
       const conflict = events.find((e) => {
         if (e.id === eventId || e.eventDate !== target.eventDate) return false
         if (e.cancelled || e.status === 'Cancelado') return false
@@ -105,15 +113,15 @@ export function DashboardPage() {
 
       <KpiGrid summary={summary} />
 
-      {/* Sección de Gestión de Eventos con el switch a la derecha */}
+      {/* Sección de Gestión de Eventos */}
       <div className="mt-8 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold text-gray-900 tracking-tight">Gestión de Eventos</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Agenda completa y control de estado de pagos</p>
+            <p className="text-xs text-gray-500 mt-0.5">Agenda completa y control de estado de señas</p>
           </div>
 
-          {/* Switch de Pestañas (Próximos / Pasados / Cancelados) */}
+          {/* Switch de Pestañas */}
           <div className="flex items-center bg-gray-100/80 p-1 rounded-xl border border-gray-200/60">
             <button
               type="button"
@@ -154,7 +162,7 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* Contenedor principal de la tabla / tarjetas */}
+        {/* Contenedor de la tabla / tarjetas */}
         {isLoading && (
           <div className="rounded-2xl border border-gray-200/80 bg-white p-12 text-center">
             <output className="text-sm text-ink-mute">Cargando eventos…</output>
@@ -167,20 +175,26 @@ export function DashboardPage() {
         )}
         {!isLoading && visible.length > 0 && (
           <>
-            <EventTable
-              events={visible}
-              isNext={currentTab === 'proximos'}
-              onReschedule={handleRescheduleEvent}
-              onCancel={handleCancelEvent}
-              onConfirmDeposit={handleConfirmDeposit}
-            />
-            <EventCards
-              events={visible}
-              isNext={currentTab === 'proximos'}
-              onReschedule={handleRescheduleEvent}
-              onCancel={handleCancelEvent}
-              onConfirmDeposit={handleConfirmDeposit}
-            />
+            {/* Tabla para Escritorio */}
+            <div className="hidden md:block">
+              <EventTable
+                events={visible}
+                isNext={currentTab === 'proximos'}
+                onReschedule={handleRescheduleEvent}
+                onCancel={handleCancelEvent}
+                onConfirmDeposit={handleConfirmDeposit}
+              />
+            </div>
+            {/* Tarjetas para Mobile */}
+            <div className="block md:hidden">
+              <EventCards
+                events={visible}
+                isNext={currentTab === 'proximos'}
+                onReschedule={handleRescheduleEvent}
+                onCancel={handleCancelEvent}
+                onConfirmDeposit={handleConfirmDeposit}
+              />
+            </div>
           </>
         )}
       </div>

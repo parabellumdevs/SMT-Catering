@@ -19,7 +19,7 @@ interface EventStoreState {
   isLoaded: boolean;
   error: string | null;
   fetchEvents: () => Promise<void>;
-  addEvent: (eventData: Omit<EventRecord, "id">) => EventRecord;
+  addEvent: (eventData: Omit<EventRecord, "id">) => Promise<EventRecord>;
   updateStatus: (
     id: string,
     status: EventStatus,
@@ -27,16 +27,7 @@ interface EventStoreState {
   ) => void;
 }
 
-/** Genera un identificador correlativo de respaldo con formato EV-XXXX. */
-function generateNextId(existingEvents: EventRecord[]): string {
-  const numericIds = existingEvents
-    .map((e) => Number(e.id.replace("EV-", "")))
-    .filter((n) => !Number.isNaN(n));
-  const max = numericIds.length > 0 ? Math.max(...numericIds) : 1045;
-  return `EV-${max + 1}`;
-}
-
-export const useEventStore = create<EventStoreState>()((set, get) => ({
+export const useEventStore = create<EventStoreState>()((set) => ({
   events: [],
   isLoading: false,
   isLoaded: false,
@@ -47,6 +38,7 @@ export const useEventStore = create<EventStoreState>()((set, get) => ({
     try {
       const res = await api.get<{ events: EventRecord[] }>("/api/events");
       if (res && Array.isArray(res.events)) {
+        // Reemplaza por completo el listado para no acumular ni duplicar registros
         set({ events: res.events, isLoading: false, isLoaded: true });
       }
     } catch (err: any) {
@@ -57,36 +49,34 @@ export const useEventStore = create<EventStoreState>()((set, get) => ({
     }
   },
 
-  addEvent: (eventData) => {
-    const nextId = generateNextId(get().events);
-    const newRecord: EventRecord = {
-      ...eventData,
-      id: nextId,
-    };
-    set((s) => ({
-      events: [newRecord, ...s.events],
-    }));
+  addEvent: async (eventData) => {
+    set({ isLoading: true });
+    try {
+      // 1. Envía el evento al backend para crearlo en PostgreSQL
+      const res = await api.post<{ event: EventRecord }>("/api/events", eventData);
+      const createdEvent = res?.event ?? (res as unknown as EventRecord);
 
-    // Persistir en SQLite vía API
-    api
-      .post<{ event: EventRecord }>("/api/events", newRecord)
-      .then((res) => {
-        if (res?.event) {
-          set((s) => ({
-            events: s.events.map((e) =>
-              e.id === nextId
-                ? // Si el backend todavía no devuelve el comprobante, se conserva el local.
-                  { ...res.event, receipt: res.event.receipt ?? newRecord.receipt }
-                : e,
-            ),
-          }));
-        }
-      })
-      .catch((err) => {
-        console.warn("No se pudo persistir el evento en la API:", err);
-      });
+      // 2. Si el backend no devuelve el comprobante pero vino en la request, lo preserva
+      const finalRecord: EventRecord = {
+        ...createdEvent,
+        receipt: createdEvent.receipt ?? eventData.receipt,
+      };
 
-    return newRecord;
+      // 3. Actualiza el estado agregando el evento real y evitando duplicados de ID
+      set((s) => ({
+        events: [
+          finalRecord,
+          ...s.events.filter((e) => e.id !== finalRecord.id),
+        ],
+        isLoading: false,
+      }));
+
+      return finalRecord;
+    } catch (err: any) {
+      set({ isLoading: false });
+      console.error("Error al persistir el evento en la API:", err);
+      throw err;
+    }
   },
 
   updateStatus: (id, status, paymentStatus) => {

@@ -8,14 +8,14 @@ import type { UserRole } from "./roles";
 /** Estados de negocio del evento / reserva */
 export type EstadoEvento =
   | "Presupuestado"
-  | "Seña pendiente"
+  | "Seña a confirmar"
   | "Señado / Confirmado"
   | "En Producción"
   | "Completado"
   | "Cancelado";
 
 /** Estados de cobro y liquidación */
-export type EstadoPago = "SEÑA_PENDIENTE" | "SALDO_PENDIENTE" | "SALDADO";
+export type EstadoPago = "SEÑA_A_CONFIRMAR" | "SALDO_PENDIENTE" | "SALDADO";
 
 /** Tipos de transacción de pago */
 export type TipoPago = "SEÑA" | "SALDO" | "TOTAL";
