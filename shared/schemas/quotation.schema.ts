@@ -24,6 +24,7 @@ export const quotationFormSchema = z.object({
     celiacos: z.number().min(0).default(0),
     vegetarianos: z.number().min(0).default(0),
     veganos: z.number().min(0).default(0),
+    hipertensos: z.number().min(0).default(0),
     alergias: z.string().default(''),
     otrosDetalle: z.string().optional(),
     otrosCantidad: z.number().min(0).optional(),
@@ -32,4 +33,3 @@ export const quotationFormSchema = z.object({
 })
 
 export type QuotationFormInput = z.infer<typeof quotationFormSchema>
-

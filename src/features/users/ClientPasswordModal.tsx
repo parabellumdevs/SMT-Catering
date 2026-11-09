@@ -79,7 +79,7 @@ export function ClientPasswordModal({
         </button>
 
         <div className="flex items-center gap-3 mb-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-brand border border-brand/20">
             <KeyRound className="w-5 h-5" />
           </div>
           <div>
@@ -120,7 +120,7 @@ export function ClientPasswordModal({
               <button
                 type="button"
                 onClick={generateRandomPassword}
-                className="text-xs text-primary hover:underline flex items-center gap-1 font-medium"
+                className="text-xs text-brand hover:underline flex items-center gap-1 font-medium"
               >
                 <Sparkles className="w-3 h-3" />
                 Generar aleatoria
@@ -157,7 +157,7 @@ export function ClientPasswordModal({
             <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" variant="brand" disabled={loading}>
               {loading ? 'Guardando…' : 'Establecer Contraseña'}
             </Button>
           </div>
@@ -166,4 +166,3 @@ export function ClientPasswordModal({
     </div>
   )
 }
-

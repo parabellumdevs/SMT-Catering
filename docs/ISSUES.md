@@ -40,7 +40,8 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - > - **Renderizado UI (Frontend):** Al cargar la aplicación, el frontend consulta `GET /api/auth/me` y guarda la sesión en `useAuthStore` únicamente para propósitos visuales (ocultar botones que el rol no puede ejecutar, adaptar la navegación en `AppShell` y mostrar saludo personalizado).
 - [x] **Sistema de Roles y Permisos (RBAC)**
   - [x] Definir los 4 roles del sistema en contratos compartidos ([`shared/types/roles.ts`](../shared/types/roles.ts)): `superadmin`, `admin`, `cocina` y `cliente`.
-  - [x] Integrar guards en frontend ([`src/App.tsx`](../src/App.tsx)) para restringir rutas según rol autenticado (`ProtectedRoute` y `AdminRoute`).
+  - [x] Integrar guardia unificado estricto por rol en frontend ([`src/App.tsx`](../src/App.tsx)) mediante `<RoleRoute allowedRoles={[...]} />` con redirección automática al home de cada rol (RBAC completo).
+  - [x] Saneamiento reactivo de sesión en frontend ([`src/stores/authStore.ts`](../src/stores/authStore.ts) y [`src/lib/api.ts`](../src/lib/api.ts)) con interceptor ante respuestas 401 y limpieza forzosa de `sessionStorage` ante cookies ausentes o expiradas.
 - [x] **Proxy de Desarrollo & Cliente HTTP Unificado**
   - [x] Configurar proxy de Vite en [`vite.config.ts`](../vite.config.ts) (`/api` -> `http://localhost:3001`) para evitar errores de CORS y habilitar transporte transparente de cookies en desarrollo y producción.
   - [x] Crear cliente HTTP centralizado ([`src/lib/api.ts`](../src/lib/api.ts)) para unificar llamadas del frontend a endpoints relativos (`/api/...`).
@@ -69,6 +70,11 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - [ ] Ocultar flechas por defecto (`spinners` / `steppers`) en todos los inputs de tipo numérico (`input[type=number]`).
 - [x] **Navegación Dinámica por Rol**
   - [x] Configurar [`AppShell.tsx`](../src/components/layout/AppShell.tsx) y [`nav-items.ts`](../src/components/layout/nav-items.ts) para renderizar únicamente las secciones habilitadas según el rol del usuario conectado.
+- [x] **Manejador Global y Modular de Errores (Error Boundary)**
+  - [x] Incorporar librería `react-error-boundary` y crear componente [`src/components/ui/ErrorBoundary.tsx`](../src/components/ui/ErrorBoundary.tsx).
+  - [x] Diseñar vista de contingencia (`ErrorFallback`) con identidad de marca Bordó (`bg-brand`), mensaje claro para el usuario, detalle técnico colapsable y acciones rápidas ("Reintentar", "Recargar página" e "Ir al inicio").
+  - [x] Envolver la raíz de la aplicación en [`src/App.tsx`](../src/App.tsx) para prevenir pantallas en blanco fatales.
+  - [x] Envolver el área de contenido (`<Outlet />`) en [`src/components/layout/AppShell.tsx`](../src/components/layout/AppShell.tsx) con `resetKeys={[location.pathname]}` para aislar fallos de renderizado por módulo manteniendo la barra lateral y navegación intactas.
 
 ---
 
@@ -80,7 +86,7 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
 - [x] **Registro de Nuevos Usuarios (`cliente` B2B)**
   - [x] Definir esquema de validación Zod ([`shared/schemas/auth.schema.ts`](../shared/schemas/auth.schema.ts)) y endpoint backend (`POST /api/auth/register`).
   - [x] Implementar vista de registro integrada en [`src/features/login/RegisterForm.tsx`](../src/features/login/RegisterForm.tsx) (evolucionada desde el `RegisterModal` inicial) con asignación automática del rol `cliente`.
-  - [ ] Agregar campos del `MER_v3` y RF-01 en el formulario de registro B2B: **Fecha de aniversario/fundación de la empresa (`fecha_aniversario`)** y **Dirección legal (`direccion_legal`)**.
+  - [x] Agregar campos del `MER_v3` y RF-01 en el formulario de registro B2B: **Fecha de aniversario/fundación de la empresa (`fecha_aniversario`)** y **Dirección legal (`direccion_legal`)**.
 - [x] **Acceso Total de Superadmin**
   - [x] Permitir al `superadmin` acceder a toda la plataforma con permisos integrales, gestión de usuarios en `/usuarios` y navegación completa.
 
@@ -92,7 +98,7 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - [x] Incorporar ícono de engranaje (ruedita) en la barra de navegación para el rol `cliente`.
 - [x] **Gestión de Datos Personales y de Empresa**
   - [x] Pantalla [`ProfilePage.tsx`](../src/features/profile/ProfilePage.tsx) para visualización y actualización de información de contacto (razón social, CUIT de solo lectura, nombre del responsable, cargo, email, teléfono y dirección legal).
-  - [ ] Incorporar visualización y edición del campo **Fecha de aniversario de la empresa (`fecha_aniversario`)** en [`ProfilePage.tsx`](../src/features/profile/ProfilePage.tsx).
+  - [x] Incorporar visualización y edición del campo **Fecha de aniversario de la empresa (`fecha_aniversario`)** en [`ProfilePage.tsx`](../src/features/profile/ProfilePage.tsx).
 - [x] **Cambio de Contraseña**
   - [x] Formulario de actualización de contraseña con validación de contraseña actual y nueva contraseña (`POST /api/client/change-password`).
 
@@ -105,19 +111,19 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - [x] Campo en frontend ([`QuotationPage.tsx`](../src/features/quotation/QuotationPage.tsx)) para ingresar dirección del evento ([`LocationField.tsx`](../src/features/quotation/components/LocationField.tsx)).
   - [x] Validación de distancia dentro del radio operativo de **20 km a la redonda** desde el punto base establecido (**Monserrat, Venezuela 1478, CABA**) con cálculo Haversine y autocompletado OSM ([`shared/geo.ts`](../shared/geo.ts), [`src/lib/geocoding.ts`](../src/lib/geocoding.ts)).
 - [ ] **Selector de Islas / Estaciones y Menú Oficial**
-  - [ ] Actualizar en [`src/lib/constants.ts`](../src/lib/constants.ts) y [`server/db/seed.sql`](../server/db/seed.sql) las descripciones de las **5 estaciones gastronómicas** según el menú oficial del cliente:
+  - [X] Actualizar en [`src/lib/constants.ts`](../src/lib/constants.ts) y [`server/db/seed.sql`](../server/db/seed.sql) las descripciones de las **5 estaciones gastronómicas** según el menú oficial del cliente:
     1. **Estación Entradas:** Tabla de quesos (Parmesano, Gouda, Roquefort), Tabla de fiambres (Jamón crudo, Jamón cocido, Salame de colonia) y Brochettes (Caprese y mixtos de pollo/vegetales).
     2. **Estación Pastas:** Ñoquis de papa y Sorrentinos de jamón y queso, con dos opciones de salsa (Fileto clásica y Salsa Parisienne).
     3. **Estación Parrilla:** Asado banderita de ternera, Mini chorizos bombón, Pollo asado, aderezos y carbón/leña proporcional por comensal.
     4. **Estación Asiática:** Wok de verduras de estación (sola y opción con pollo) y Sushi rolls variados (Salmon Roll, Veggie Roll y Philadelphia).
     5. **Estación Dulce:** 5 variedades de shots de postres (Chocotorta, Lemon Pie, Cheesecake de frutos rojos, Mousse de chocolate y Oreotorta).
-  - [ ] Incorporar imágenes ilustrativas de alta calidad para cada una de las estaciones gastronómicas en [`StationSelector.tsx`](../src/features/quotation/components/StationSelector.tsx).
+  - [X] Incorporar imágenes ilustrativas de alta calidad para cada una de las estaciones gastronómicas en [`StationSelector.tsx`](../src/features/quotation/components/StationSelector.tsx).
 - [x] **Adicionales**
   - [x] Eliminar la opción "Mantelería" y "Cubiertos" de los ítems adicionales disponibles, dejando únicamente **Barra de tragos (Barra libre)** opcional por comensal.
 - [ ] **Restricciones Alimentarias**
   - [x] Tipado de modelo para `"Otros"` con detalle y cantidad ([`shared/types/events.ts`](../shared/types/events.ts)).
-  - [ ] Revisar y agregar restricciones faltantes en [`DietaryMatrix.tsx`](../src/features/quotation/components/DietaryMatrix.tsx): agregar **"Sin sal (Hipertensión)"** y permitir agregar restricciones personalizadas (**"Otros"**) indicando descripción y cantidad exacta de comensales.
-  - [ ] Persistir y recuperar en el backend todas las categorías de restricciones alimentarias, validando que la suma no supere el total de invitados.
+  - [X] Revisar y agregar restricciones faltantes en [`DietaryMatrix.tsx`](../src/features/quotation/components/DietaryMatrix.tsx): agregar **"Sin sal (Hipertensión)"** y permitir agregar restricciones personalizadas (**"Otros"**) indicando descripción y cantidad exacta de comensales.
+  - [X] Persistir y recuperar en el backend todas las categorías de restricciones alimentarias, validando que la suma no supere el total de invitados.
 - [ ] **Fecha del Evento, Horarios & Disponibilidad**
   - [x] Definir reglas de validación en esquema Zod ([`shared/schemas/quotation.schema.ts`](../shared/schemas/quotation.schema.ts)) y servicio de cotización.
   - [x] Restringir la selección de fechas en el calendario exclusivamente a días **viernes, sábados y domingos** ([`AvailabilityCalendar.tsx`](../src/features/quotation/components/AvailabilityCalendar.tsx)).
@@ -131,26 +137,26 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
 - [ ] **Resumen Financiero & Checkout**
   - [x] Incorporar tarifa fija de **Seguro contra todo riesgo (`$80.000`)** en base de datos y cálculo de cotización.
   - [x] Ajustar seña al **50%** en cálculo de cotización (congela el precio y aprueba automáticamente para producción).
-  - [ ] Permitir al cliente elegir el monto inicial a abonar en frontend: **50% (Seña)** o **100% (Total)**.
-  - [ ] Renombrar el botón `"Confirmar evento"` por **`"Pagar"`** en [`PriceSummary.tsx`](../src/features/quotation/components/PriceSummary.tsx).
-  - [ ] Quitar el botón `"Compartir resumen"` en [`PriceSummary.tsx`](../src/features/quotation/components/PriceSummary.tsx).
-  - [ ] Implementar modal informativo previo a la redirección a la pasarela de pagos en [`ConfirmEventModal.tsx`](../src/features/quotation/components/ConfirmEventModal.tsx), tomando automáticamente los datos del cliente B2B autenticado.
+  - [X] Permitir al cliente elegir el monto inicial a abonar en frontend: **50% (Seña)** o **100% (Total)**.
+  - [X] Renombrar el botón `"Confirmar evento"` por **`"Pagar"`** en [`PriceSummary.tsx`](../src/features/quotation/components/PriceSummary.tsx).
+  - [X] Quitar el botón `"Compartir resumen"` en [`PriceSummary.tsx`](../src/features/quotation/components/PriceSummary.tsx).
+  - [x] Implementar modal informativo previo a la redirección a la pasarela de pagos en [`ConfirmEventModal.tsx`](../src/features/quotation/components/ConfirmEventModal.tsx), tomando automáticamente los datos del cliente B2B autenticado.
 
 ---
 
 ## 6. Mis Eventos [Cliente]
 
-- [ ] **Listado de Eventos Propios**
+- [x] **Listado de Eventos Propios**
   - [x] Crear scaffold de la vista [`src/features/my-events/MyEventsPage.tsx`](../src/features/my-events/MyEventsPage.tsx).
   - [x] Boceto de controlador en [`EventsController.myEvents`](../server/modules/events/events.controller.ts).
-  - [ ] Registrar la ruta `/mis-eventos` en [`src/App.tsx`](../src/App.tsx), agregar enlace en [`nav-items.ts`](../src/components/layout/nav-items.ts) para el rol `cliente` y conectar el endpoint real `GET /api/events/my-events` contra PostgreSQL.
-  - [ ] Mostrar tarjetas/grilla con: fecha y horario contratado, dirección, comensales, estaciones seleccionadas y estado de cobro.
-- [ ] **Acciones Disponibles por Evento**
-  - [ ] **Ver Detalle:** modal o vista con el desglose completo de la cotización y servicios.
-  - [ ] **Pagar Saldo Restante (50%):** botón para abonar el saldo pendiente (vencimiento: hasta **24 horas antes** del evento) con redirección a pasarela de pagos y actualización a `SALDADO`.
-  - [ ] **Comprobantes (PDF):** descarga o previsualización del comprobante comercial / factura de los pagos efectuados.
-  - [ ] **Reprogramación:** solicitar cambio de fecha sin recargo, validando únicamente que la nueva fecha cumpla con las reglas de disponibilidad y concurrencia ($\le 60$ pax).
-  - [ ] **Cancelación:** botón para solicitar cancelación del evento aplicando la política acordada:
+  - [x] Registrar la ruta `/mis-eventos` en [`src/App.tsx`](../src/App.tsx), agregar enlace en [`nav-items.ts`](../src/components/layout/nav-items.ts) para el rol `cliente` y conectar el endpoint real `GET /api/events/my-events` contra PostgreSQL.
+  - [x] Mostrar tarjetas/grilla con: fecha y horario contratado, dirección, comensales, estaciones seleccionadas y estado de cobro.
+- [x] **Acciones Disponibles por Evento**
+  - [x] **Ver Detalle:** modal o vista con el desglose completo de la cotización y servicios.
+  - [x] **Pagar Saldo Restante (50%):** botón para abonar el saldo pendiente (vencimiento: hasta **24 horas antes** del evento) con redirección a pasarela de pagos y actualización a `SALDADO`.
+  - [x] **Comprobantes (PDF):** descarga o previsualización del comprobante comercial / factura de los pagos efectuados.
+  - [x] **Reprogramación:** solicitar cambio de fecha sin recargo, validando únicamente que la nueva fecha cumpla con las reglas de disponibilidad y concurrencia ($\le 60$ pax).
+  - [x] **Cancelación:** botón para solicitar cancelación del evento aplicando la política acordada:
     - Hasta **7 días (1 semana) antes** del evento: **reintegro del 100% de la seña**.
     - Menos de **7 días antes** del evento: **sin reintegro de la seña**.
 
@@ -173,8 +179,8 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
   - [ ] Botón para cambio/reprogramación manual de fecha validando disponibilidad.
   - [ ] **Registro de pago manual/presencial** cuando el cliente abona en el local (actualizando el estado a `SALDADO` e insertando el registro en `pago` sin redireccionar a pasarela externa).
   - [ ] Botón para cancelación de evento con cálculo de reintegro según la regla de 7 días y baja de comanda en cocina.
-- [ ] **Separación de Vistas**
-  - [ ] Mover las tarjetas de métricas (`KpiGrid`) fuera de [`DashboardPage.tsx`](../src/features/dashboard/components/KpiGrid.tsx) hacia la vista independiente de **"Métricas"** (`/metricas`).
+- [x] **Separación de Vistas**
+  - [x] Mover las tarjetas de métricas (`KpiGrid`) fuera de [`DashboardPage.tsx`](../src/features/dashboard/components/KpiGrid.tsx) hacia la vista independiente de **"Métricas"** (`/metricas`).
 - [ ] **Restricciones de Acceso para Rol Cocina (`cocina`)**
   - [x] Sanitización bocetada en [`EventsController.list`](../server/modules/events/events.controller.ts).
   - [ ] Aplicar la sanitización en el endpoint activo `GET /api/events` y ocultar en la UI de [`EventTable.tsx`](../src/features/dashboard/components/EventTable.tsx) las columnas de importes, saldos y botones de cobro/edición para el rol `cocina`.
@@ -197,14 +203,14 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
 
 ## 9. Métricas & Reportes [Admin]
 
-- [ ] **Nueva Vista Independiente de Métricas (`/metricas`)**
+- [x] **Nueva Vista Independiente de Métricas (`/metricas`)**
   - [x] Crear scaffold de la vista [`src/features/metrics/MetricsPage.tsx`](../src/features/metrics/MetricsPage.tsx).
-  - [ ] Configurar la ruta `/metricas` en [`src/App.tsx`](../src/App.tsx) accesible únicamente para `admin` y `superadmin` (`AdminRoute`) y agregarla en [`nav-items.ts`](../src/components/layout/nav-items.ts).
-  - [ ] Reubicar aquí las tarjetas e indicadores de facturación, señas cobradas, saldos por cobrar y volumen de comensales.
-  - [ ] Incorporar las estadísticas específicas solicitadas por el cliente en las Meets 3 y 4:
-    - [ ] **Estadística de ticket promedio por evento.**
-    - [ ] **Métrica del día más solicitado** (Viernes vs Sábado vs Domingo).
-    - [ ] **Métrica de la estación / isla más solicitada.**
+  - [x] Configurar la ruta `/metricas` en [`src/App.tsx`](../src/App.tsx) accesible únicamente para `admin` y `superadmin` (`AdminRoute`) y agregarla en [`nav-items.ts`](../src/components/layout/nav-items.ts).
+  - [x] Reubicar aquí las tarjetas e indicadores de facturación, señas cobradas, saldos por cobrar y volumen de comensales.
+  - [x] Incorporar las estadísticas específicas solicitadas por el cliente en las Meets 3 y 4:
+    - [x] **Estadística de ticket promedio por evento.**
+    - [x] **Métrica del día más solicitado** (Viernes vs Sábado vs Domingo).
+    - [x] **Métrica de la estación / isla más solicitada.**
 
 ---
 

@@ -271,6 +271,83 @@ function verifyJwt(token) {
   }
 }
 
+// server/lib/mailer.ts
+import nodemailer from "nodemailer";
+function getTransporter() {
+  const user = (process.env.SMTP_USER || "").trim();
+  const pass = (process.env.SMTP_PASS || "").trim();
+  if (!user || !pass) {
+    return null;
+  }
+  const host = (process.env.SMTP_HOST || "smtp-relay.brevo.com").trim();
+  const port = Number(process.env.SMTP_PORT) || 587;
+  const secure = port === 465;
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: {
+      user,
+      pass
+    }
+  });
+}
+async function sendEmail({ to, subject, html }) {
+  const transporter = getTransporter();
+  if (!transporter) {
+    return false;
+  }
+  try {
+    const fromAddress = process.env.SMTP_FROM || `"SMT Catering" <${process.env.SMTP_USER || "smtcatering.notificaciones@outlook.com"}>`;
+    await transporter.sendMail({
+      from: fromAddress,
+      to,
+      subject,
+      html
+    });
+    console.log(`[EMAIL ENVIADO] Correo enviado exitosamente a: ${to}`);
+    return true;
+  } catch (error) {
+    console.warn("[SMTP ERROR] Fall\xF3 el env\xEDo de correo mediante Nodemailer:", error);
+    return false;
+  }
+}
+async function sendPasswordResetEmail(toEmail, token) {
+  const emailSent = await sendEmail({
+    to: toEmail,
+    subject: "Recuperaci\xF3n de contrase\xF1a \u2014 SMT Catering",
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px;">
+        <div style="margin-bottom: 24px;">
+          <span style="font-size: 20px; font-weight: 700; color: #003770; letter-spacing: -0.5px;">SMT Catering</span>
+        </div>
+        <h1 style="font-size: 20px; font-weight: 600; color: #111827; margin: 0 0 12px 0;">Recuperaci\xF3n de contrase\xF1a</h1>
+        <p style="font-size: 14px; line-height: 20px; color: #4b5563; margin: 0 0 20px 0;">
+          Recibimos una solicitud para restablecer la contrase\xF1a de tu cuenta empresarial en SMT Catering.
+        </p>
+        <p style="font-size: 14px; line-height: 20px; color: #4b5563; margin: 0 0 10px 0;">
+          Tu c\xF3digo de verificaci\xF3n es:
+        </p>
+        <div style="background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; text-align: center; margin: 0 0 20px 0;">
+          <span style="font-family: 'SF Pro Mono', Monaco, Consolas, monospace; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #003770; display: inline-block;">${token}</span>
+        </div>
+        <p style="font-size: 13px; line-height: 18px; color: #6b7280; margin: 0 0 24px 0;">
+          Este c\xF3digo es v\xE1lido por <strong>10 minutos</strong> y solo puede ser utilizado una vez. Si vos no solicitaste este cambio, pod\xE9s ignorar este mensaje de forma segura.
+        </p>
+        <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 0 0 16px 0;" />
+        <p style="font-size: 12px; color: #9ca3af; margin: 0;">
+          SMT Catering \u2014 Sistema de Gesti\xF3n Gastron\xF3mica
+        </p>
+      </div>
+    `
+  });
+  if (!emailSent || process.env.NODE_ENV !== "production") {
+    console.log(`
+\u{1F511} [RESET PASSWORD] Token para ${toEmail}: ${token} (Email enviado: ${emailSent ? "S\xCD" : "NO"})
+`);
+  }
+}
+
 // server/modules/auth/auth.service.ts
 var AuthService = class {
   static async login(usernameOrEmail, pass) {
@@ -349,6 +426,8 @@ var AuthService = class {
     const cargoResponsable = (data.cargoResponsable || "").trim();
     const email = (data.email || "").trim().toLowerCase();
     const telefono = (data.telefono || "").trim();
+    const direccionLegal = (data.direccionLegal || "").trim();
+    const fechaAniversario = (data.fechaAniversario || "").trim();
     const pass = data.pass || "";
     if (!razonSocial || razonSocial.length < 3) throw new Error("La raz\xF3n social es requerida");
     if (!cuit) throw new Error("El CUIT es requerido");
@@ -361,9 +440,19 @@ var AuthService = class {
     if (cuitExists) throw new Error("DUPLICADO: Ya existe una cuenta con ese CUIT");
     const passHash = hashPassword(pass);
     const result = await dbClient.execute(
-      `INSERT INTO cliente (razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, password_hash)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [razonSocial, cuit, nombreCompleto, cargoResponsable || null, email, telefono || null, passHash]
+      `INSERT INTO cliente (razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, direccion_legal, fecha_aniversario, password_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        razonSocial,
+        cuit,
+        nombreCompleto,
+        cargoResponsable || null,
+        email,
+        telefono || null,
+        direccionLegal || null,
+        fechaAniversario || null,
+        passHash
+      ]
     );
     const idCliente = Number(result.lastInsertId);
     const user = {
@@ -395,32 +484,31 @@ var AuthService = class {
     if (!staff && !cliente) {
       return;
     }
-    const raw = Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-    const token = raw.slice(0, 40).padEnd(40, "0");
-    const expiresAt = Date.now() + 60 * 60 * 1e3;
+    const token = Math.floor(1e5 + Math.random() * 9e5).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1e3;
     await dbClient.execute("DELETE FROM password_reset_tokens WHERE email = ?", [email]);
     await dbClient.execute(
       `INSERT INTO password_reset_tokens (email, token, expires_at, used)
        VALUES (?, ?, ?, 0)`,
       [email, token, expiresAt]
     );
-    console.log(`
-\u{1F511} [RESET PASSWORD] Token para ${email}: ${token}
-`);
+    await sendPasswordResetEmail(email, token);
   }
-  static async resetPassword(tokenInput, newPass, confirmPass) {
+  static async resetPassword(emailInput, tokenInput, newPass, confirmPass) {
     const dbClient = getDatabase();
+    const emailParam = (emailInput || "").trim().toLowerCase();
     const token = (tokenInput || "").trim();
-    if (!token || token.length !== 40) throw new Error("Token inv\xE1lido");
+    if (!emailParam || !emailParam.includes("@")) throw new Error("Email inv\xE1lido");
+    if (!/^\d{6}$/.test(token)) throw new Error("C\xF3digo de verificaci\xF3n inv\xE1lido");
     if (newPass.length < 6) throw new Error("La contrase\xF1a debe tener al menos 6 caracteres");
     if (newPass !== confirmPass) throw new Error("Las contrase\xF1as no coinciden");
     const row = await dbClient.queryOne(
-      "SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0",
-      [token]
+      "SELECT * FROM password_reset_tokens WHERE LOWER(email) = ? AND token = ? AND used = 0",
+      [emailParam, token]
     );
     if (!row) throw new Error("Token inv\xE1lido o ya utilizado");
     if (Date.now() > Number(row.expires_at)) {
-      await dbClient.execute("DELETE FROM password_reset_tokens WHERE token = ?", [token]);
+      await dbClient.execute("DELETE FROM password_reset_tokens WHERE LOWER(email) = ? AND token = ?", [emailParam, token]);
       throw new Error("El token expir\xF3. Solicit\xE1 uno nuevo.");
     }
     const email = row.email;
@@ -435,7 +523,10 @@ var AuthService = class {
         email
       ]);
     }
-    await dbClient.execute("UPDATE password_reset_tokens SET used = 1 WHERE token = ?", [token]);
+    await dbClient.execute("UPDATE password_reset_tokens SET used = 1 WHERE LOWER(email) = ? AND token = ?", [
+      emailParam,
+      token
+    ]);
   }
 };
 
@@ -535,8 +626,8 @@ var AuthController = class {
   }
   static async resetPassword(req, res) {
     try {
-      const { token, newPass, confirmPass } = req.body || {};
-      await AuthService.resetPassword(token, newPass, confirmPass);
+      const { email, token, newPass, confirmPass } = req.body || {};
+      await AuthService.resetPassword(email, token, newPass, confirmPass);
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -554,18 +645,86 @@ authRouter.post("/forgot-password", AuthController.forgotPassword);
 authRouter.post("/reset-password", AuthController.resetPassword);
 
 // server/modules/events/events.service.ts
-var EventsService = class {
-  static async fetchAllEvents() {
-    const dbClient = getDatabase();
-    const rows = await dbClient.query(
-      `SELECT
-        r.*,
-        c.razon_social as cliente_empresa,
-        c.nombre_completo as contacto
-      FROM reserva r
-      JOIN cliente c ON c.id_cliente = r.id_cliente
-      ORDER BY r.fecha_evento ASC`
+async function persistEventStations(dbClient, idReserva, stationIds, extraIds, guests) {
+  const selectedIds = [.../* @__PURE__ */ new Set([...stationIds, ...extraIds])];
+  if (selectedIds.length === 0) return;
+  const placeholders = selectedIds.map(() => "?").join(", ");
+  const stationRows = await dbClient.query(
+    `SELECT codigo, id_estacion, precio_por_persona
+     FROM estacion
+     WHERE codigo IN (${placeholders})`,
+    selectedIds
+  );
+  const stations = new Map(
+    stationRows.map((station) => [station.codigo, station])
+  );
+  const missingExtras = extraIds.filter((id) => !stations.has(id));
+  if (missingExtras.length > 0) {
+    const extraPlaceholders = missingExtras.map(() => "?").join(", ");
+    const tariffs = await dbClient.query(
+      `SELECT id, label, price_per_guest_cents
+       FROM tarifas
+       WHERE category = 'extra' AND is_active = 1 AND id IN (${extraPlaceholders})`,
+      missingExtras
     );
+    const tariffsById = new Map(tariffs.map((tariff) => [tariff.id, tariff]));
+    const insertedExtras = await Promise.all(
+      missingExtras.map(async (id) => {
+        const tariff = tariffsById.get(id);
+        if (!tariff) {
+          throw new Error(
+            `No se encontr\xF3 la tarifa del adicional seleccionado: ${id}`
+          );
+        }
+        const result = await dbClient.execute(
+          `INSERT INTO estacion (codigo, nombre, tipo_comida, descripcion, precio_por_persona)
+         VALUES (?, ?, 'extra', ?, ?)
+         ON CONFLICT (codigo) DO UPDATE
+         SET nombre = EXCLUDED.nombre,
+             descripcion = EXCLUDED.descripcion,
+             precio_por_persona = EXCLUDED.precio_por_persona
+         RETURNING id_estacion, precio_por_persona`,
+          [
+            id,
+            tariff.label,
+            tariff.label,
+            Number(tariff.price_per_guest_cents) / 100
+          ]
+        );
+        if (!result.row) {
+          throw new Error(
+            `No se pudo registrar el adicional seleccionado: ${id}`
+          );
+        }
+        return {
+          codigo: id,
+          id_estacion: result.row.id_estacion,
+          precio_por_persona: result.row.precio_por_persona
+        };
+      })
+    );
+    for (const station of insertedExtras) {
+      stations.set(station.codigo, station);
+    }
+  }
+  await Promise.all(
+    selectedIds.map(async (id) => {
+      const station = stations.get(id);
+      if (!station) {
+        throw new Error(`No se encontr\xF3 la estaci\xF3n seleccionada: ${id}`);
+      }
+      const subtotal = Number(station.precio_por_persona) * guests;
+      await dbClient.execute(
+        `INSERT INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado)
+       VALUES (?, ?, ?)`,
+        [idReserva, station.id_estacion, subtotal]
+      );
+    })
+  );
+}
+var EventsService = class {
+  static async mapReservationRows(rows) {
+    const dbClient = getDatabase();
     const events = await Promise.all(
       rows.map(async (r) => {
         const [stationRows, dietaryRows, pagos] = await Promise.all([
@@ -593,26 +752,30 @@ var EventsService = class {
         let celiacos = 0;
         let vegetarianos = 0;
         let veganos = 0;
+        let hipertensos = 0;
         const alergias = [];
         for (const d of dietaryRows) {
           const tipo = (d.tipo_restriccion || "").toLowerCase();
           if (tipo.includes("celia")) celiacos += d.cantidad_personas;
           else if (tipo.includes("vege")) vegetarianos += d.cantidad_personas;
           else if (tipo.includes("vega")) veganos += d.cantidad_personas;
+          else if (tipo.includes("hipertens"))
+            hipertensos += d.cantidad_personas;
           else if (tipo.includes("alerg")) {
             if (d.observaciones) alergias.push(d.observaciones);
           }
         }
         let depositPesos = 0;
         for (const p of pagos) {
-          if (p.tipo_pago === "SE\xD1A" || p.tipo_pago === "TOTAL") {
+          if (p.tipo_pago === "SE\xD1A" || p.tipo_pago === "TOTAL" || p.tipo_pago === "SALDO") {
             depositPesos += Number(p.monto) || 0;
           }
         }
+        const eventDateStr = r.fecha_evento instanceof Date ? r.fecha_evento.toISOString().slice(0, 10) : String(r.fecha_evento).slice(0, 10);
         return {
           id: `EV-${r.id_reserva}`,
           clientName: r.cliente_empresa || r.contacto,
-          eventDate: r.fecha_evento,
+          eventDate: eventDateStr,
           guests: r.cantidad_invitados,
           stationIds: stations,
           status: r.estado_evento || "Presupuestado",
@@ -623,6 +786,7 @@ var EventsService = class {
             celiacos,
             vegetarianos,
             veganos,
+            hipertensos,
             alergias: alergias.join(", ")
           },
           kitchenNotes: r.notas_cocina || "",
@@ -638,26 +802,63 @@ var EventsService = class {
     );
     return events;
   }
+  static async fetchAllEvents() {
+    const dbClient = getDatabase();
+    const rows = await dbClient.query(
+      `SELECT
+        r.*,
+        c.razon_social as cliente_empresa,
+        c.nombre_completo as contacto
+      FROM reserva r
+      JOIN cliente c ON c.id_cliente = r.id_cliente
+      ORDER BY r.fecha_evento ASC`
+    );
+    return this.mapReservationRows(rows);
+  }
+  static async fetchEventsByClientId(clientId) {
+    const dbClient = getDatabase();
+    const rows = await dbClient.query(
+      `SELECT
+        r.*,
+        c.razon_social as cliente_empresa,
+        c.nombre_completo as contacto
+      FROM reserva r
+      JOIN cliente c ON c.id_cliente = r.id_cliente
+      WHERE r.id_cliente = ?
+      ORDER BY r.fecha_evento DESC`,
+      [clientId]
+    );
+    return this.mapReservationRows(rows);
+  }
   static async createEvent(body) {
     const dbClient = getDatabase();
-    let cliente = await dbClient.queryOne(
-      "SELECT id_cliente FROM cliente WHERE razon_social = ?",
-      [body.clientName]
-    );
-    let idCliente = cliente?.id_cliente;
+    let idCliente = body.clientId ? Number(body.clientId) : void 0;
     if (!idCliente) {
-      const insertResult = await dbClient.execute(
-        `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-          body.clientName,
-          `30-${Date.now().toString().slice(-8)}-1`,
-          body.clientName,
-          `eventos@${body.clientName.toLowerCase().replace(/[^a-z0-9]/g, "") || "cliente"}.com`,
-          "temp_hash"
-        ]
+      const cliente = await dbClient.queryOne(
+        "SELECT id_cliente FROM cliente WHERE razon_social = ?",
+        [body.clientName]
       );
-      idCliente = Number(insertResult.lastInsertId);
+      idCliente = cliente?.id_cliente ? Number(cliente.id_cliente) : void 0;
+      if (!idCliente) {
+        const insertResult = await dbClient.execute(
+          `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
+           VALUES (?, ?, ?, ?, ?)
+           RETURNING id_cliente`,
+          [
+            body.clientName,
+            `30-${Date.now().toString().slice(-8)}-1`,
+            body.clientName,
+            `eventos@${body.clientName.toLowerCase().replace(/[^a-z0-9]/g, "") || "cliente"}.com`,
+            "temp_hash"
+          ]
+        );
+        idCliente = Number(
+          insertResult.row?.id_cliente ?? insertResult.lastInsertId
+        );
+        if (!Number.isSafeInteger(idCliente) || idCliente <= 0) {
+          throw new Error("PostgreSQL no devolvi\xF3 el ID del cliente creado.");
+        }
+      }
     }
     const totalPesos = (body.totalCents || 0) / 100;
     const seguroPesos = (body.insuranceCents || 0) / 100;
@@ -666,7 +867,8 @@ var EventsService = class {
         id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
         cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
         estado_evento, estado_pago, notas_cocina, monto_total, monto_seguro
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING id_reserva`,
       [
         idCliente,
         body.eventDate,
@@ -684,7 +886,12 @@ var EventsService = class {
         seguroPesos
       ]
     );
-    const idReserva = Number(reservaResult.lastInsertId);
+    const idReserva = Number(
+      reservaResult.row?.id_reserva ?? reservaResult.lastInsertId
+    );
+    if (!Number.isSafeInteger(idReserva) || idReserva <= 0) {
+      throw new Error("PostgreSQL no devolvi\xF3 el ID de la reserva creada.");
+    }
     if (Array.isArray(body.stationIds)) {
       for (const stationSlug of body.stationIds) {
         const s = await dbClient.queryOne(
@@ -701,6 +908,13 @@ var EventsService = class {
         }
       }
     }
+    await persistEventStations(
+      dbClient,
+      idReserva,
+      Array.isArray(body.stationIds) ? body.stationIds : [],
+      Array.isArray(body.extraIds) ? body.extraIds : [],
+      body.guests || 50
+    );
     if (body.dietary) {
       if (body.dietary.celiacos > 0) {
         await dbClient.execute(
@@ -728,19 +942,44 @@ var EventsService = class {
           [idReserva, "Veganos", body.dietary.veganos, "Men\xFA vegano"]
         );
       }
+      if (body.dietary.hipertensos > 0) {
+        await dbClient.execute(
+          `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
+           VALUES (?, ?, ?, ?)`,
+          [
+            idReserva,
+            "Hipertensos",
+            body.dietary.hipertensos,
+            "Men\xFA bajo en sodio"
+          ]
+        );
+      }
       if (body.dietary.alergias) {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
            VALUES (?, ?, ?, ?)`,
-          [idReserva, "Alergias", 1, body.dietary.alergias]
+          [
+            idReserva,
+            "Alergias",
+            1,
+            String(body.dietary.alergias).slice(0, 200)
+          ]
         );
       }
     }
     if (body.depositCents > 0) {
+      const isPaidInFull = body.paymentStatus === "SALDADO";
       await dbClient.execute(
         `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [idReserva, "SE\xD1A", body.depositCents / 100, 1, 0, "confirmado"]
+        [
+          idReserva,
+          isPaidInFull ? "TOTAL" : "SE\xD1A",
+          body.depositCents / 100,
+          1,
+          isPaidInFull ? 1 : 0,
+          "confirmado"
+        ]
       );
     }
     const all = await this.fetchAllEvents();
@@ -749,6 +988,16 @@ var EventsService = class {
   static async updateEvent(rawId, updates) {
     const dbClient = getDatabase();
     const idReserva = Number(rawId.replace("EV-", ""));
+    let endTime = null;
+    if (updates.startTime) {
+      const [hStr, mStr] = updates.startTime.split(":");
+      const h = Number(hStr);
+      const m = Number(mStr || 0);
+      if (!Number.isNaN(h)) {
+        const endH = (h + 3) % 24;
+        endTime = `${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      }
+    }
     await dbClient.execute(
       `UPDATE reserva
        SET
@@ -758,6 +1007,7 @@ var EventsService = class {
          fecha_actualizacion = CURRENT_TIMESTAMP,
          fecha_evento = COALESCE(?, fecha_evento),
          hora_inicio = COALESCE(?, hora_inicio),
+         hora_fin = COALESCE(?, hora_fin),
          evento_cancelado = COALESCE(?, evento_cancelado)
        WHERE id_reserva = ?`,
       [
@@ -766,89 +1016,89 @@ var EventsService = class {
         updates.kitchenNotes ?? null,
         updates.eventDate ?? null,
         updates.startTime ?? null,
+        endTime,
         updates.cancelled ?? null,
         idReserva
       ]
     );
-  }
-};
-
-// server/modules/events/events.controller.ts
-var EventsController = class {
-  static async list(_req, res) {
-    try {
-      const events = await EventsService.fetchAllEvents();
-      res.json({ events });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-  static async create(req, res) {
-    try {
-      const event = await EventsService.createEvent(req.body || {});
-      res.status(201).json({ event });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-  static async update(req, res) {
-    try {
-      const id = req.params.id;
-      if (!id) {
-        res.status(400).json({ error: "ID de reserva requerido" });
-        return;
+    if (updates.paymentStatus === "SALDADO") {
+      const res = await dbClient.queryOne(
+        `SELECT monto_total FROM reserva WHERE id_reserva = ?`,
+        [idReserva]
+      );
+      if (res) {
+        const montoTotal = Number(res.monto_total) || 0;
+        const pagosRows = await dbClient.query(
+          `SELECT monto FROM pago WHERE id_reserva = ? AND estado = 'confirmado'`,
+          [idReserva]
+        );
+        let yaAbonado = 0;
+        for (const p of pagosRows) {
+          yaAbonado += Number(p.monto) || 0;
+        }
+        const saldoRemanente = Math.max(0, montoTotal - yaAbonado);
+        if (saldoRemanente > 0) {
+          await dbClient.execute(
+            `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [idReserva, "SALDO", saldoRemanente, 1, 1, "confirmado"]
+          );
+        }
       }
-      await EventsService.updateEvent(id, req.body || {});
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-  static async myEvents(req, res) {
-    try {
-      if (!req.user) {
-        res.status(401).json({ error: "No autorizado" });
-        return;
-      }
-      const events = await EventsService.fetchAllEvents();
-      const filtered = events.filter((_e) => {
-        return true;
-      });
-      res.json({ events: filtered });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
     }
   }
 };
 
-// server/modules/events/events.routes.ts
-var eventsRouter = createRouter();
-eventsRouter.get("/", EventsController.list);
-eventsRouter.post("/", EventsController.create);
-eventsRouter.patch("/:id", EventsController.update);
-eventsRouter.get("/my-events", EventsController.myEvents);
+// shared/schemas/quotation.schema.ts
+import { z } from "zod";
+var GUEST_MIN = 50;
+var GUEST_MAX = 120;
+var CONCURRENT_GUEST_MAX = 60;
+var MAX_EVENT_DURATION_HOURS = 3;
+var MAX_DISTANCE_KM = 20;
+var quotationFormSchema = z.object({
+  guests: z.number().min(GUEST_MIN, `El m\xEDnimo es de ${GUEST_MIN} comensales`).max(GUEST_MAX, `El m\xE1ximo es de ${GUEST_MAX} comensales`),
+  stationIds: z.array(z.string()).min(1, "Debe seleccionar al menos 1 estaci\xF3n culinaria"),
+  eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato de fecha inv\xE1lido (YYYY-MM-DD)"),
+  startTime: z.string().regex(/^(19|20|21):[0-5][0-9]$/, "El inicio debe ser entre las 19:00 y las 21:00 hs"),
+  endTime: z.string().regex(/^(20|21|22|23):[0-5][0-9]|00:00$/, "La finalizaci\xF3n no puede exceder las 00:00 hs"),
+  durationHours: z.number().min(1).max(MAX_EVENT_DURATION_HOURS, `La duraci\xF3n m\xE1xima es de ${MAX_EVENT_DURATION_HOURS} horas`),
+  locationAddress: z.string().min(5, "La direcci\xF3n del evento es requerida"),
+  distanceKm: z.number().max(MAX_DISTANCE_KM, `La distancia m\xE1xima de cobertura es de ${MAX_DISTANCE_KM} km`),
+  dietary: z.object({
+    celiacos: z.number().min(0).default(0),
+    vegetarianos: z.number().min(0).default(0),
+    veganos: z.number().min(0).default(0),
+    hipertensos: z.number().min(0).default(0),
+    alergias: z.string().default(""),
+    otrosDetalle: z.string().optional(),
+    otrosCantidad: z.number().min(0).optional()
+  }),
+  paymentOption: z.enum(["deposit_50", "full_100"])
+});
 
 // server/modules/quotation/quotation.service.ts
 var QuotationService = class {
-  static async checkAvailability(date) {
+  static async checkAvailability(date, excludeReservaId, requestedGuests) {
     const dbClient = getDatabase();
-    const result = await dbClient.queryOne(
-      "SELECT count(*) as count, sum(cantidad_invitados) as total_guests FROM reserva WHERE fecha_evento = ? AND evento_cancelado = 0",
-      [date]
-    );
+    const query = excludeReservaId ? "SELECT count(*) as count, sum(cantidad_invitados) as total_guests FROM reserva WHERE fecha_evento = ? AND evento_cancelado = 0 AND id_reserva != ?" : "SELECT count(*) as count, sum(cantidad_invitados) as total_guests FROM reserva WHERE fecha_evento = ? AND evento_cancelado = 0";
+    const params = excludeReservaId ? [date, excludeReservaId] : [date];
+    const result = await dbClient.queryOne(query, params);
     const count = Number(result?.count || 0);
     const totalGuests = Number(result?.total_guests || 0);
     if (count === 0) {
       return { available: true, isConcurrent: false };
     }
-    if (count === 1 && totalGuests <= 60) {
+    if (count === 1 && totalGuests <= CONCURRENT_GUEST_MAX && (requestedGuests === void 0 || requestedGuests > 0 && requestedGuests <= CONCURRENT_GUEST_MAX)) {
       return { available: true, isConcurrent: true };
     }
     return { available: false, isConcurrent: false };
   }
   static async calculateQuotation(input) {
     const dbClient = getDatabase();
-    const tariffs = await dbClient.query("SELECT * FROM tarifas WHERE is_active = 1");
+    const tariffs = await dbClient.query(
+      "SELECT * FROM tarifas WHERE is_active = 1"
+    );
     const stations = await dbClient.query("SELECT * FROM estacion");
     const baseTariff = tariffs.find((t) => t.category === "base")?.price_per_guest_cents || 0;
     const insuranceCents = tariffs.find((t) => t.category === "insurance")?.fixed_cents || 0;
@@ -856,7 +1106,9 @@ var QuotationService = class {
     for (const stationId of input.stationIds) {
       const station = stations.find((s) => s.codigo === stationId);
       if (station) {
-        stationsCentsPerGuest += Math.round(Number(station.precio_por_persona) * 100);
+        stationsCentsPerGuest += Math.round(
+          Number(station.precio_por_persona) * 100
+        );
       }
     }
     const perGuestCents = baseTariff + stationsCentsPerGuest;
@@ -875,16 +1127,180 @@ var QuotationService = class {
   }
 };
 
+// server/modules/events/events.controller.ts
+var EventsController = class {
+  static async list(_req, res) {
+    try {
+      const events = await EventsService.fetchAllEvents();
+      res.json({ events });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+  static async create(req, res) {
+    try {
+      const user = req.user ?? extractAuthenticatedUser(req);
+      const payload = { ...req.body || {} };
+      if (user?.role === "cliente") {
+        payload.clientId = user.id;
+      }
+      const event = await EventsService.createEvent(payload);
+      res.status(201).json({ event });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+  static async update(req, res) {
+    try {
+      const id = req.params.id;
+      if (!id) {
+        res.status(400).json({ error: "ID de reserva requerido" });
+        return;
+      }
+      if (!req.user) {
+        res.status(401).json({ error: "No autenticado" });
+        return;
+      }
+      const dbClient = getDatabase();
+      const idReserva = Number(id.replace("EV-", ""));
+      const reserva = await dbClient.queryOne(
+        "SELECT * FROM reserva WHERE id_reserva = ?",
+        [idReserva]
+      );
+      if (!reserva) {
+        res.status(404).json({ error: "Reserva no encontrada" });
+        return;
+      }
+      const updates = req.body || {};
+      if (req.user.role === "cliente") {
+        if (Number(reserva.id_cliente) !== Number(req.user.id)) {
+          res.status(403).json({ error: "No autorizado para modificar esta reserva." });
+          return;
+        }
+        if (updates.eventDate) {
+          if (reserva.evento_cancelado === 1 || reserva.estado_evento === "Cancelado") {
+            res.status(400).json({ error: "No se puede reprogramar un evento cancelado." });
+            return;
+          }
+          const availability = await QuotationService.checkAvailability(updates.eventDate, idReserva);
+          if (!availability.available) {
+            res.status(400).json({
+              error: "La fecha seleccionada no tiene disponibilidad para nuevos servicios."
+            });
+            return;
+          }
+          if (availability.isConcurrent && Number(reserva.cantidad_invitados) > 60) {
+            res.status(400).json({
+              error: "La fecha seleccionada solo admite eventos concurrentes de hasta 60 comensales."
+            });
+            return;
+          }
+          await EventsService.updateEvent(id, {
+            eventDate: updates.eventDate,
+            startTime: updates.startTime
+          });
+          res.json({ success: true, eventDate: updates.eventDate, startTime: updates.startTime });
+          return;
+        }
+        if (updates.cancelled === 1 || updates.status === "Cancelado") {
+          if (reserva.evento_cancelado === 1) {
+            res.status(400).json({ error: "El evento ya se encuentra cancelado." });
+            return;
+          }
+          const eventDateObj = new Date(reserva.fecha_evento);
+          const today = /* @__PURE__ */ new Date();
+          const diffMs = eventDateObj.getTime() - today.getTime();
+          const diffDays = Math.ceil(diffMs / (1e3 * 60 * 60 * 24));
+          const refundEligible = diffDays >= 7;
+          const cancelNote = refundEligible ? `[Cancelaci\xF3n cliente: ${diffDays} d\xEDas de antelaci\xF3n \u2014 Reintegro 100% de se\xF1a]` : `[Cancelaci\xF3n cliente: ${diffDays} d\xEDas de antelaci\xF3n \u2014 Sin reintegro de se\xF1a (< 7 d\xEDas)]`;
+          await EventsService.updateEvent(id, {
+            status: "Cancelado",
+            cancelled: 1,
+            kitchenNotes: reserva.notas_cocina ? `${reserva.notas_cocina} | ${cancelNote}` : cancelNote
+          });
+          res.json({
+            success: true,
+            cancelled: true,
+            refundEligible,
+            daysNotice: diffDays,
+            message: refundEligible ? "Evento cancelado exitosamente. Se ha aprobado el reintegro del 100% de la se\xF1a." : "Evento cancelado. De acuerdo a las pol\xEDticas de contrataci\xF3n (< 7 d\xEDas de antelaci\xF3n), la se\xF1a no tiene reintegro."
+          });
+          return;
+        }
+        if (updates.paymentStatus === "SALDADO") {
+          if (reserva.evento_cancelado === 1) {
+            res.status(400).json({ error: "No se puede abonar el saldo de un evento cancelado." });
+            return;
+          }
+          await EventsService.updateEvent(id, {
+            paymentStatus: "SALDADO"
+          });
+          res.json({ success: true, paymentStatus: "SALDADO" });
+          return;
+        }
+        res.status(400).json({ error: "Acci\xF3n no permitida para el rol cliente." });
+        return;
+      }
+      if (updates.paymentStatus === "SALDADO") {
+        if (req.user.role !== "admin" && req.user.role !== "superadmin") {
+          res.status(403).json({
+            error: "Solo los administradores pueden registrar cobros de saldo."
+          });
+          return;
+        }
+      } else if (req.user.role !== "admin" && req.user.role !== "superadmin") {
+        res.status(403).json({ error: "No autorizado para modificar eventos." });
+        return;
+      }
+      await EventsService.updateEvent(id, updates);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+  static async myEvents(req, res) {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: "No autorizado" });
+        return;
+      }
+      if (req.user.role === "cliente") {
+        const events2 = await EventsService.fetchEventsByClientId(req.user.id);
+        res.json({ events: events2 });
+        return;
+      }
+      const events = await EventsService.fetchAllEvents();
+      res.json({ events });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+};
+
+// server/modules/events/events.routes.ts
+var eventsRouter = createRouter();
+eventsRouter.get("/my-events", authGuard, EventsController.myEvents);
+eventsRouter.get("/", EventsController.list);
+eventsRouter.post("/", EventsController.create);
+eventsRouter.patch("/:id", authGuard, EventsController.update);
+
 // server/modules/quotation/quotation.controller.ts
 var QuotationController = class {
   static async checkDate(req, res) {
     try {
       const date = req.query.date;
+      const guests = req.query.guests === void 0 ? void 0 : Number(req.query.guests);
       if (!date) {
         res.status(400).json({ error: "Par\xE1metro date es requerido" });
         return;
       }
-      const result = await QuotationService.checkAvailability(date);
+      if (guests !== void 0 && (!Number.isInteger(guests) || guests < GUEST_MIN || guests > GUEST_MAX)) {
+        res.status(400).json({
+          error: `Par\xE1metro guests debe estar entre ${GUEST_MIN} y ${GUEST_MAX}`
+        });
+        return;
+      }
+      const result = await QuotationService.checkAvailability(date, guests);
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -1235,6 +1651,7 @@ var UsersService = class {
     const email = body.email !== void 0 ? String(body.email).trim().toLowerCase() : existing.email;
     const telefono = body.telefono !== void 0 ? String(body.telefono).trim() : existing.telefono;
     const direccionLegal = body.direccionLegal !== void 0 ? String(body.direccionLegal).trim() : existing.direccion_legal;
+    const fechaAniversario = body.fechaAniversario !== void 0 ? body.fechaAniversario ? String(body.fechaAniversario).trim() : null : existing.fecha_aniversario;
     const activo = body.activo !== void 0 ? Number(body.activo) === 0 ? 0 : 1 : existing.activo;
     if (email !== existing.email.toLowerCase()) {
       const staffDup = await dbClient.queryOne("SELECT id_usuario FROM usuario_staff WHERE LOWER(email) = ?", [email]);
@@ -1252,7 +1669,7 @@ var UsersService = class {
     }
     await dbClient.execute(
       `UPDATE cliente
-       SET razon_social = ?, cuit = ?, nombre_completo = ?, cargo_responsable = ?, email = ?, telefono = ?, direccion_legal = ?, password_hash = ?, activo = ?
+       SET razon_social = ?, cuit = ?, nombre_completo = ?, cargo_responsable = ?, email = ?, telefono = ?, direccion_legal = ?, fecha_aniversario = ?, password_hash = ?, activo = ?
        WHERE id_cliente = ?`,
       [
         razonSocial,
@@ -1262,6 +1679,7 @@ var UsersService = class {
         email,
         telefono,
         direccionLegal,
+        fechaAniversario,
         newPasswordHash,
         activo,
         targetId
@@ -1367,6 +1785,14 @@ var ProfileService = class {
     const dbClient = getDatabase();
     const cliente = await dbClient.queryOne("SELECT * FROM cliente WHERE id_cliente = ?", [clientId]);
     if (!cliente) throw new Error("NOT_FOUND: Cliente no encontrado");
+    let fechaAniversario = "";
+    if (cliente.fecha_aniversario) {
+      if (cliente.fecha_aniversario instanceof Date) {
+        fechaAniversario = cliente.fecha_aniversario.toISOString().slice(0, 10);
+      } else {
+        fechaAniversario = String(cliente.fecha_aniversario).slice(0, 10);
+      }
+    }
     return {
       razonSocial: cliente.razon_social || "",
       cuit: cliente.cuit || "",
@@ -1374,7 +1800,8 @@ var ProfileService = class {
       cargoResponsable: cliente.cargo_responsable || "",
       email: cliente.email || "",
       telefono: cliente.telefono || "",
-      direccionLegal: cliente.direccion_legal || ""
+      direccionLegal: cliente.direccion_legal || "",
+      fechaAniversario
     };
   }
   static async updateProfile(clientId, body) {
@@ -1387,6 +1814,7 @@ var ProfileService = class {
     const email = (body.email || cliente.email || "").trim().toLowerCase();
     const telefono = (body.telefono ?? cliente.telefono ?? "").trim();
     const direccionLegal = (body.direccionLegal ?? cliente.direccion_legal ?? "").trim();
+    const fechaAniversario = (body.fechaAniversario ?? cliente.fecha_aniversario ?? "").trim();
     if (!razonSocial || !nombreCompleto || !email) {
       throw new Error("Raz\xF3n social, nombre del responsable y email son obligatorios");
     }
@@ -1408,7 +1836,8 @@ var ProfileService = class {
          cargo_responsable = ?,
          email = ?,
          telefono = ?,
-         direccion_legal = ?
+         direccion_legal = ?,
+         fecha_aniversario = ?
        WHERE id_cliente = ?`,
       [
         razonSocial,
@@ -1417,6 +1846,7 @@ var ProfileService = class {
         email,
         telefono || null,
         direccionLegal || null,
+        fechaAniversario || null,
         cliente.id_cliente
       ]
     );
@@ -1427,7 +1857,8 @@ var ProfileService = class {
       cargoResponsable,
       email,
       telefono,
-      direccionLegal
+      direccionLegal,
+      fechaAniversario
     };
   }
   static async changePassword(clientId, currentPasswordRaw, newPasswordRaw) {
@@ -1508,6 +1939,316 @@ profileRouter.get("/profile", authGuard, requireRoles(["cliente"]), ProfileContr
 profileRouter.put("/profile", authGuard, requireRoles(["cliente"]), ProfileController.updateProfile);
 profileRouter.post("/change-password", authGuard, requireRoles(["cliente"]), ProfileController.changePassword);
 
+// server/modules/payments/payments.service.ts
+import { randomUUID } from "node:crypto";
+var PaymentError = class extends Error {
+  statusCode;
+  object;
+  constructor(message, statusCode = 400, object) {
+    super(message);
+    this.name = "PaymentError";
+    this.statusCode = statusCode;
+    this.object = object;
+  }
+};
+var DEPOSIT_PERCENT = 50;
+function getAccessToken() {
+  const accessToken = process.env.ACCESS_TOKEN_MP;
+  if (!accessToken) {
+    throw new PaymentError(
+      "La pasarela de Mercado Pago no est\xE1 configurada.",
+      503
+    );
+  }
+  return accessToken;
+}
+async function mercadoPagoRequest(path, init) {
+  const response = await fetch(`https://api.mercadopago.com${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${getAccessToken()}`,
+      "Content-Type": "application/json",
+      ...init?.headers
+    }
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = typeof body === "object" && body !== null && "message" in body && typeof body.message === "string" ? body.message : `Mercado Pago respondi\xF3 con HTTP ${response.status}.`;
+    throw new PaymentError(message, 502);
+  }
+  return body;
+}
+function normalizeAppOrigin(origin) {
+  let url;
+  try {
+    url = new URL(origin);
+  } catch {
+    throw new PaymentError(
+      "No se pudo determinar la URL de retorno del pago.",
+      400
+    );
+  }
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw new PaymentError("La URL de retorno del pago no es v\xE1lida.", 400);
+  }
+  return url.origin;
+}
+function buildReturnUrl(appOrigin, status) {
+  const url = new URL("/", appOrigin);
+  url.searchParams.set("mp_status", status);
+  return url.toString();
+}
+function validateReservation(input) {
+  const reservation = input?.reservation;
+  if (!reservation || typeof reservation.clientName !== "string" || !reservation.clientName.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(reservation.eventDate) || Number.isNaN(Date.parse(`${reservation.eventDate}T00:00:00`)) || !Number.isInteger(reservation.guests) || reservation.guests < 50 || reservation.guests > 120 || !Array.isArray(reservation.stationIds) || reservation.stationIds.length === 0 || !Array.isArray(reservation.extraIds) || (/* @__PURE__ */ new Set([...reservation.stationIds, ...reservation.extraIds])).size !== reservation.stationIds.length + reservation.extraIds.length || typeof reservation.kitchenNotes !== "string" || !reservation.dietary || typeof reservation.dietary !== "object" || !["deposit", "full"].includes(input.initialPayment)) {
+    throw new PaymentError(
+      "Los datos de la reserva est\xE1n incompletos o no son v\xE1lidos."
+    );
+  }
+}
+var PaymentsService = class {
+  static async ensureCheckoutTable() {
+    const db3 = getDatabase();
+    await db3.exec(`
+      CREATE TABLE IF NOT EXISTS mercado_pago_checkout (
+        external_reference TEXT PRIMARY KEY,
+        preference_id TEXT,
+        reservation_data JSONB NOT NULL,
+        expected_amount_cents INTEGER NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        payment_id TEXT UNIQUE,
+        event_id TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }
+  static async createPreference(input, appOrigin) {
+    validateReservation(input);
+    const db3 = getDatabase();
+    const tariffs = await db3.query(
+      `SELECT id, category, price_per_guest_cents, fixed_cents
+       FROM tarifas
+       WHERE is_active = 1`
+    );
+    const getSelectedPrice = (id, category) => {
+      const tariff = tariffs.find((item) => item.id === id);
+      if (tariff?.category !== category) {
+        throw new PaymentError(
+          `La tarifa "${id}" ya no est\xE1 disponible. Actualiz\xE1 la cotizaci\xF3n.`
+        );
+      }
+      return Number(tariff.price_per_guest_cents);
+    };
+    const selectedTariffs = [
+      ...input.reservation.stationIds.map(
+        (id) => getSelectedPrice(id, "station")
+      ),
+      ...input.reservation.extraIds.map((id) => getSelectedPrice(id, "extra"))
+    ];
+    const insuranceCents = tariffs.filter((tariff) => tariff.category === "insurance").reduce((sum, tariff) => sum + Number(tariff.fixed_cents || 0), 0);
+    const expectedTotalCents = selectedTariffs.reduce(
+      (sum, price) => sum + price * input.reservation.guests,
+      insuranceCents
+    );
+    const amountCents = input.initialPayment === "full" ? expectedTotalCents : Math.round(expectedTotalCents * DEPOSIT_PERCENT / 100);
+    if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
+      throw new PaymentError("El monto de la reserva no es v\xE1lido.");
+    }
+    const externalReference = randomUUID();
+    const paymentStatus = input.initialPayment === "full" ? "SALDADO" : "SALDO_PENDIENTE";
+    const reservation = {
+      ...input.reservation,
+      totalCents: expectedTotalCents,
+      insuranceCents,
+      depositCents: amountCents,
+      paymentStatus,
+      status: "Se\xF1ado / Confirmado",
+      cancelled: false
+    };
+    const origin = normalizeAppOrigin(appOrigin);
+    await this.ensureCheckoutTable();
+    await db3.execute(
+      `INSERT INTO mercado_pago_checkout
+        (external_reference, reservation_data, expected_amount_cents, status)
+       VALUES (?, ?, ?, 'pending')`,
+      [externalReference, JSON.stringify(reservation), amountCents]
+    );
+    try {
+      const preference = await mercadoPagoRequest("/checkout/preferences", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            {
+              id: externalReference,
+              title: `Reserva de evento ${reservation.eventDate}`,
+              quantity: 1,
+              unit_price: amountCents / 100,
+              currency_id: "ARS"
+            }
+          ],
+          external_reference: externalReference,
+          back_urls: {
+            success: buildReturnUrl(origin, "success"),
+            pending: buildReturnUrl(origin, "pending"),
+            failure: buildReturnUrl(origin, "failure")
+          },
+          auto_return: "approved"
+        })
+      });
+      if (!preference.id || !preference.init_point) {
+        throw new PaymentError(
+          "Mercado Pago no devolvi\xF3 una URL de pago.",
+          502
+        );
+      }
+      await db3.execute(
+        `UPDATE mercado_pago_checkout
+         SET preference_id = ?
+         WHERE external_reference = ?`,
+        [preference.id, externalReference]
+      );
+      return { initPoint: preference.init_point, externalReference };
+    } catch (error) {
+      await db3.execute(
+        `UPDATE mercado_pago_checkout
+         SET status = 'failed'
+         WHERE external_reference = ?`,
+        [externalReference]
+      );
+      throw error;
+    }
+  }
+  static async confirmPayment(paymentId, externalReference) {
+    if (!/^\d+$/.test(paymentId) || !externalReference) {
+      throw new PaymentError(
+        "La informaci\xF3n de retorno del pago no es v\xE1lida."
+      );
+    }
+    const db3 = getDatabase();
+    await this.ensureCheckoutTable();
+    const checkout = await db3.queryOne(
+      `SELECT preference_id, reservation_data, expected_amount_cents, status, payment_id, event_id
+       FROM mercado_pago_checkout
+       WHERE external_reference = ?`,
+      [externalReference]
+    );
+    if (!checkout) {
+      throw new PaymentError(
+        "No se encontr\xF3 la reserva asociada al pago.",
+        404
+      );
+    }
+    if (checkout.status === "completed" && checkout.event_id) {
+      return { eventId: checkout.event_id };
+    }
+    if (checkout.status !== "pending") {
+      throw new PaymentError(
+        "Este pago ya se est\xE1 procesando o no puede confirmarse.",
+        409
+      );
+    }
+    const payment = await mercadoPagoRequest(
+      `/v1/payments/${encodeURIComponent(paymentId)}`,
+      { method: "GET" }
+    );
+    const matchesCheckout = payment.status === "approved" && payment.currency_id === "ARS" && payment.external_reference === externalReference && Math.round(payment.transaction_amount * 100) === Number(checkout.expected_amount_cents);
+    if (!matchesCheckout) {
+      throw new PaymentError(
+        "Mercado Pago todav\xEDa no confirma el pago de esta reserva.",
+        402,
+        matchesCheckout
+      );
+    }
+    const claim = await db3.execute(
+      `UPDATE mercado_pago_checkout
+       SET status = 'processing', payment_id = ?
+       WHERE external_reference = ? AND status = 'pending'`,
+      [paymentId, externalReference]
+    );
+    if (claim.changes === 0) {
+      const latest = await db3.queryOne(
+        `SELECT status, event_id
+         FROM mercado_pago_checkout
+         WHERE external_reference = ?`,
+        [externalReference]
+      );
+      if (latest?.status === "completed" && latest.event_id) {
+        return { eventId: latest.event_id };
+      }
+      throw new PaymentError(
+        "El pago ya se est\xE1 procesando. Volv\xE9 a consultar en unos segundos.",
+        409
+      );
+    }
+    try {
+      const event = await EventsService.createEvent(checkout.reservation_data);
+      if (!event?.id) {
+        throw new Error(
+          "No se pudo crear la reserva despu\xE9s del pago aprobado."
+        );
+      }
+      await db3.execute(
+        `UPDATE mercado_pago_checkout
+         SET status = 'completed', event_id = ?
+         WHERE external_reference = ?`,
+        [event.id, externalReference]
+      );
+      return { eventId: event.id };
+    } catch (error) {
+      await db3.execute(
+        `UPDATE mercado_pago_checkout
+         SET status = 'pending', payment_id = NULL
+         WHERE external_reference = ? AND status = 'processing'`,
+        [externalReference]
+      );
+      throw error;
+    }
+  }
+};
+
+// server/modules/payments/payments.controller.ts
+function getOrigin(req) {
+  const origin = req.headers.origin;
+  if (typeof origin === "string") return origin;
+  if (Array.isArray(origin)) return origin[0];
+  return process.env.APP_URL;
+}
+function respondWithError(res, error) {
+  if (error instanceof PaymentError) {
+    res.status(error.statusCode).json({ error: error.message });
+    return;
+  }
+  console.error("Error en la integraci\xF3n de Mercado Pago:", error);
+  res.status(500).json({ error: "No se pudo completar la operaci\xF3n de pago." });
+}
+var PaymentsController = class {
+  static async createPreference(req, res) {
+    try {
+      const result = await PaymentsService.createPreference(req.body, getOrigin(req) || "");
+      res.json(result);
+    } catch (error) {
+      respondWithError(res, error);
+    }
+  }
+  static async confirm(req, res) {
+    try {
+      const { paymentId, externalReference } = req.body || {};
+      const result = await PaymentsService.confirmPayment(
+        String(paymentId || ""),
+        String(externalReference || "")
+      );
+      res.json(result);
+    } catch (error) {
+      respondWithError(res, error);
+    }
+  }
+};
+
+// server/modules/payments/payments.routes.ts
+var paymentsRouter = createRouter();
+paymentsRouter.post("/preference", PaymentsController.createPreference);
+paymentsRouter.post("/confirm", PaymentsController.confirm);
+
 // server/app.ts
 function parseCookies(cookieHeader) {
   const list = {};
@@ -1554,7 +2295,8 @@ var mountedRoutes = [
   { prefix: "/api/production", router: productionRouter },
   { prefix: "/api/tariffs", router: tariffsRouter },
   { prefix: "/api/users", router: usersRouter },
-  { prefix: "/api/client", router: profileRouter }
+  { prefix: "/api/client", router: profileRouter },
+  { prefix: "/api/payments", router: paymentsRouter }
 ];
 async function app(req, res) {
   if (req.method === "OPTIONS") {

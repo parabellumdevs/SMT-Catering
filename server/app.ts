@@ -11,6 +11,7 @@ import { productionRouter } from './modules/production/production.routes.ts'
 import { tariffsRouter } from './modules/tariffs/tariffs.routes.ts'
 import { usersRouter } from './modules/users/users.routes.ts'
 import { profileRouter } from './modules/profile/profile.routes.ts'
+import { paymentsRouter } from './modules/payments/payments.routes.ts'
 import { getDatabase } from './db/client.ts'
 
 export const appModules = {
@@ -21,6 +22,7 @@ export const appModules = {
   tariffs: tariffsRouter,
   users: usersRouter,
   profile: profileRouter,
+  payments: paymentsRouter,
 }
 
 function parseCookies(cookieHeader?: string): Record<string, string> {
@@ -77,6 +79,7 @@ const mountedRoutes: MountedRoute[] = [
   { prefix: '/api/tariffs', router: tariffsRouter },
   { prefix: '/api/users', router: usersRouter },
   { prefix: '/api/client', router: profileRouter },
+  { prefix: '/api/payments', router: paymentsRouter },
 ]
 
 export async function app(req: IncomingMessage, res: ServerResponse): Promise<void> {

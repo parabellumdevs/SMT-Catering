@@ -1,26 +1,135 @@
-import { CalendarCheck, ShieldCheck, CreditCard, Landmark, FileText } from 'lucide-react'
-import { useState } from 'react'
+import { CalendarCheck, ShieldCheck, CreditCard } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
-import { DEPOSIT_PERCENT, ESTACIONES_GASTRONOMICAS } from '@/lib/constants'
+import { DEPOSIT_PERCENT, ESTACIONES_GASTRONOMICAS, type EstacionId } from '@/lib/constants'
 import { ConfirmEventModal } from '@/features/quotation/components/ConfirmEventModal'
 import { useQuotationCalculator } from '@/features/quotation/hooks/useQuotationCalculator'
 import { useTariffStore } from '@/stores/tariffStore'
 import { formatCurrency } from '@/lib/utils'
 import { useQuotationStore } from '@/stores/quotationStore'
+import type { CustomObservation, DietaryRequirement } from '@/types/domain'
+
+/** Etiquetas del medio de pago elegido, para reflejarlas en el modal de confirmación. */
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  transferencia: 'Transferencia bancaria',
+  factura: 'Factura A',
+  tarjeta: 'Tarjeta de crédito',
+} as const
+
+type PaymentMethod = 'transferencia' | 'factura' | 'tarjeta'
+const PENDING_CHECKOUT_KEY = 'smt-pending-mercado-pago-checkout'
+
+type UnknownRecord = Record<string, unknown>
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isCustomObservation(value: unknown): value is CustomObservation {
+  if (!isRecord(value)) return false
+  return typeof value.id === 'string'
+    && typeof value.description === 'string'
+    && typeof value.count === 'number'
+    && Number.isInteger(value.count)
+    && value.count >= 0
+}
+
+function isGeoPoint(value: unknown): value is { lat: number; lng: number } {
+  if (!isRecord(value)) return false
+  return typeof value.lat === 'number'
+    && Number.isFinite(value.lat)
+    && typeof value.lng === 'number'
+    && Number.isFinite(value.lng)
+}
+
+function getRestoredCheckoutQuotation(value: unknown) {
+  if (!isRecord(value) || !isRecord(value.eventData)) return null
+
+  const reservation = value.eventData
+  const rawStationIds = reservation.stationIds
+  const rawExtraIds = reservation.extraIds
+  const dietary = reservation.dietary
+  if (
+    typeof reservation.guests !== 'number'
+    || typeof reservation.eventDate !== 'string'
+    || !Array.isArray(rawStationIds)
+    || !Array.isArray(rawExtraIds)
+    || !isRecord(dietary)
+    || typeof dietary.celiacos !== 'number'
+    || typeof dietary.vegetarianos !== 'number'
+    || typeof dietary.veganos !== 'number'
+    || typeof dietary.alergias !== 'string'
+  ) {
+    return null
+  }
+
+  const stationIds = rawStationIds.filter(
+    (id): id is EstacionId => typeof id === 'string'
+      && ESTACIONES_GASTRONOMICAS.some((station) => station.id === id),
+  )
+  if (stationIds.length !== rawStationIds.length) return null
+
+  return {
+    guests: reservation.guests,
+    eventDate: reservation.eventDate,
+    stationIds,
+    extraIds: rawExtraIds.filter((id): id is string => typeof id === 'string'),
+    dietary: {
+      celiacos: dietary.celiacos,
+      vegetarianos: dietary.vegetarianos,
+      veganos: dietary.veganos,
+      hipertensos: typeof dietary.hipertensos === 'number' ? dietary.hipertensos : 0,
+      alergias: dietary.alergias,
+      customObservations: Array.isArray(dietary.customObservations)
+        ? dietary.customObservations.filter(isCustomObservation)
+        : [],
+    } satisfies DietaryRequirement,
+    startTime: typeof reservation.startTime === 'string' ? reservation.startTime : undefined,
+    locationAddress: typeof reservation.locationAddress === 'string'
+      ? reservation.locationAddress
+      : '',
+    locationDistanceKm: typeof reservation.distanceKm === 'number'
+      ? reservation.distanceKm
+      : null,
+    locationPoint: isGeoPoint(value.locationPoint) ? value.locationPoint : null,
+  }
+}
 
 export function PriceSummaryPanel() {
+  const location = useLocation()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<'transferencia' | 'factura' | 'tarjeta'>('transferencia')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transferencia')
   
   const guests = useQuotationStore((s) => s.guests)
   const eventDate = useQuotationStore((s) => s.eventDate)
   const stationIds = useQuotationStore((s) => s.stationIds)
+  const locationPoint = useQuotationStore((s) => s.locationPoint)
   const tariffs = useTariffStore((s) => s.tariffs)
+
+  useEffect(() => {
+    const returnStatus = new URLSearchParams(location.search).get('mp_status')
+    if (!returnStatus) return
+
+    setPaymentMethod('tarjeta')
+    setConfirmOpen(true)
+
+    try {
+      const saved = sessionStorage.getItem(PENDING_CHECKOUT_KEY)
+      if (!saved) return
+
+      const restoredQuotation = getRestoredCheckoutQuotation(JSON.parse(saved))
+      if (restoredQuotation) useQuotationStore.setState(restoredQuotation)
+    } catch (error) {
+      console.error('No se pudo restaurar la cotización al volver de Mercado Pago:', error)
+    }
+  }, [location.search])
   
-  // 💡 Obtenemos insuranceCents del calculador
   const { totalCents, depositCents, balanceCents, insuranceCents } = useQuotationCalculator()
-  const canConfirm = Boolean(eventDate) && stationIds.length > 0
+
+  // Se combinan las condiciones de fecha, estaciones y ubicación geográfica
+  const canConfirm = Boolean(eventDate) && stationIds.length > 0 && locationPoint !== null
 
   const selectedStations = ESTACIONES_GASTRONOMICAS.filter((s) => stationIds.includes(s.id))
 
@@ -59,7 +168,7 @@ export function PriceSummaryPanel() {
               })
             )}
 
-            {/* 💡 Muestra el seguro si aplica */}
+            {/* Muestra el seguro si aplica */}
             {insuranceCents > 0 && (
               <div className="flex justify-between items-center text-ink-secondary">
                 <span>🛡️ Seguro del evento</span>
@@ -91,31 +200,7 @@ export function PriceSummaryPanel() {
             <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-mute block">Medio de Pago</span>
             
             <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('transferencia')}
-                className={`w-full flex items-center justify-between p-3 rounded-lg border text-xs transition-all ${
-                  paymentMethod === 'transferencia' ? 'border-[#581c25] bg-[#581c25]/5 font-medium text-ink' : 'border-hairline text-ink-secondary hover:bg-canvas-soft'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <Landmark className="h-4 w-4 text-[#581c25]" /> Transferencia Bancaria
-                </span>
-                <span className={`h-3 w-3 rounded-full border flex items-center justify-center ${paymentMethod === 'transferencia' ? 'border-[#581c25] bg-[#581c25]' : 'border-hairline'}`} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('factura')}
-                className={`w-full flex items-center justify-between p-3 rounded-lg border text-xs transition-all ${
-                  paymentMethod === 'factura' ? 'border-[#581c25] bg-[#581c25]/5 font-medium text-ink' : 'border-hairline text-ink-secondary hover:bg-canvas-soft'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-[#581c25]" /> Factura A
-                </span>
-                <span className={`h-3 w-3 rounded-full border flex items-center justify-center ${paymentMethod === 'factura' ? 'border-[#581c25] bg-[#581c25]' : 'border-hairline'}`} />
-              </button>
+             
 
               <button
                 type="button"
@@ -160,7 +245,13 @@ export function PriceSummaryPanel() {
           </div>
         </div>
       </div>
-      <ConfirmEventModal open={confirmOpen} onOpenChange={setConfirmOpen} />
+
+      <ConfirmEventModal
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        paymentMethodLabel={PAYMENT_METHOD_LABELS[paymentMethod]}
+        paymentMethod={paymentMethod}
+      />
     </aside>
   )
 }

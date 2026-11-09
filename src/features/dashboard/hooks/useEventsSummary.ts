@@ -6,6 +6,7 @@ import type { EventRecord } from "@/types/domain";
 export function useEvents(): {
   data: EventRecord[];
   isLoading: boolean;
+  isLoaded: boolean;
   refetch: () => Promise<void>;
 } {
   const events = useEventStore((s) => s.events);
@@ -19,7 +20,7 @@ export function useEvents(): {
     }
   }, [isLoaded, fetchEvents]);
 
-  return { data: events, isLoading, refetch: fetchEvents };
+  return { data: events, isLoading, isLoaded, refetch: fetchEvents };
 }
 
 export interface EventsSummary {
@@ -48,7 +49,7 @@ export function summarizeEvents(events: EventRecord[]): EventsSummary {
     return sum;
   }, 0);
 
-  // Saldos por cobrar: saldo restante (60%) de eventos con SALDO_PENDIENTE
+  // Saldos por cobrar: saldo restante (50%) de eventos con SALDO_PENDIENTE
   const balancesPendingCents = events.reduce((sum, e) => {
     if (e.paymentStatus === "SALDO_PENDIENTE") {
       return sum + (e.totalCents - e.depositCents);

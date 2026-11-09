@@ -65,7 +65,6 @@ export const useEventStore = create<EventStoreState>()((set, get) => ({
     set((s) => ({
       events: [newRecord, ...s.events],
     }));
-
     // Persistir en SQLite vía API
     api
       .post<{ event: EventRecord }>("/api/events", newRecord)

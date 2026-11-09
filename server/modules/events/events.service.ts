@@ -1,17 +1,109 @@
 import { getDatabase } from "../../db/client.ts";
 
-export class EventsService {
-  static async fetchAllEvents() {
-    const dbClient = getDatabase();
-    const rows = await dbClient.query(
-      `SELECT
-        r.*,
-        c.razon_social as cliente_empresa,
-        c.nombre_completo as contacto
-      FROM reserva r
-      JOIN cliente c ON c.id_cliente = r.id_cliente
-      ORDER BY r.fecha_evento ASC`,
+interface EventStationRow {
+  codigo: string;
+  id_estacion: number;
+  precio_por_persona: number | string;
+}
+
+async function persistEventStations(
+  dbClient: ReturnType<typeof getDatabase>,
+  idReserva: number,
+  stationIds: string[],
+  extraIds: string[],
+  guests: number,
+): Promise<void> {
+  const selectedIds = [...new Set([...stationIds, ...extraIds])];
+  if (selectedIds.length === 0) return;
+
+  const placeholders = selectedIds.map(() => "?").join(", ");
+  const stationRows = await dbClient.query<EventStationRow>(
+    `SELECT codigo, id_estacion, precio_por_persona
+     FROM estacion
+     WHERE codigo IN (${placeholders})`,
+    selectedIds,
+  );
+  const stations = new Map(
+    stationRows.map((station) => [station.codigo, station]),
+  );
+  const missingExtras = extraIds.filter((id) => !stations.has(id));
+
+  if (missingExtras.length > 0) {
+    const extraPlaceholders = missingExtras.map(() => "?").join(", ");
+    const tariffs = await dbClient.query<{
+      id: string;
+      label: string;
+      price_per_guest_cents: number | string;
+    }>(
+      `SELECT id, label, price_per_guest_cents
+       FROM tarifas
+       WHERE category = 'extra' AND is_active = 1 AND id IN (${extraPlaceholders})`,
+      missingExtras,
     );
+    const tariffsById = new Map(tariffs.map((tariff) => [tariff.id, tariff]));
+
+    const insertedExtras = await Promise.all(
+      missingExtras.map(async (id) => {
+        const tariff = tariffsById.get(id);
+        if (!tariff) {
+          throw new Error(
+            `No se encontró la tarifa del adicional seleccionado: ${id}`,
+          );
+        }
+
+        const result = await dbClient.execute(
+          `INSERT INTO estacion (codigo, nombre, tipo_comida, descripcion, precio_por_persona)
+         VALUES (?, ?, 'extra', ?, ?)
+         ON CONFLICT (codigo) DO UPDATE
+         SET nombre = EXCLUDED.nombre,
+             descripcion = EXCLUDED.descripcion,
+             precio_por_persona = EXCLUDED.precio_por_persona
+         RETURNING id_estacion, precio_por_persona`,
+          [
+            id,
+            tariff.label,
+            tariff.label,
+            Number(tariff.price_per_guest_cents) / 100,
+          ],
+        );
+        if (!result.row) {
+          throw new Error(
+            `No se pudo registrar el adicional seleccionado: ${id}`,
+          );
+        }
+
+        return {
+          codigo: id,
+          id_estacion: result.row.id_estacion,
+          precio_por_persona: result.row.precio_por_persona,
+        };
+      }),
+    );
+
+    for (const station of insertedExtras) {
+      stations.set(station.codigo, station);
+    }
+  }
+
+  await Promise.all(
+    selectedIds.map(async (id) => {
+      const station = stations.get(id);
+      if (!station) {
+        throw new Error(`No se encontró la estación seleccionada: ${id}`);
+      }
+      const subtotal = Number(station.precio_por_persona) * guests;
+      await dbClient.execute(
+        `INSERT INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado)
+       VALUES (?, ?, ?)`,
+        [idReserva, station.id_estacion, subtotal],
+      );
+    }),
+  );
+}
+
+export class EventsService {
+  private static async mapReservationRows(rows: any[]) {
+    const dbClient = getDatabase();
 
     const events = await Promise.all(
       rows.map(async (r: any) => {
@@ -42,6 +134,7 @@ export class EventsService {
         let celiacos = 0;
         let vegetarianos = 0;
         let veganos = 0;
+        let hipertensos = 0;
         const alergias: string[] = [];
 
         for (const d of dietaryRows) {
@@ -49,6 +142,8 @@ export class EventsService {
           if (tipo.includes("celia")) celiacos += d.cantidad_personas;
           else if (tipo.includes("vege")) vegetarianos += d.cantidad_personas;
           else if (tipo.includes("vega")) veganos += d.cantidad_personas;
+          else if (tipo.includes("hipertens"))
+            hipertensos += d.cantidad_personas;
           else if (tipo.includes("alerg")) {
             if (d.observaciones) alergias.push(d.observaciones);
           }
@@ -56,15 +151,24 @@ export class EventsService {
 
         let depositPesos = 0;
         for (const p of pagos) {
-          if (p.tipo_pago === "SEÑA" || p.tipo_pago === "TOTAL") {
+          if (
+            p.tipo_pago === "SEÑA" ||
+            p.tipo_pago === "TOTAL" ||
+            p.tipo_pago === "SALDO"
+          ) {
             depositPesos += Number(p.monto) || 0;
           }
         }
 
+        const eventDateStr =
+          r.fecha_evento instanceof Date
+            ? r.fecha_evento.toISOString().slice(0, 10)
+            : String(r.fecha_evento).slice(0, 10);
+
         return {
           id: `EV-${r.id_reserva}`,
           clientName: r.cliente_empresa || r.contacto,
-          eventDate: r.fecha_evento,
+          eventDate: eventDateStr,
           guests: r.cantidad_invitados,
           stationIds: stations,
           status: r.estado_evento || "Presupuestado",
@@ -75,6 +179,7 @@ export class EventsService {
             celiacos,
             vegetarianos,
             veganos,
+            hipertensos,
             alergias: alergias.join(", "),
           },
           kitchenNotes: r.notas_cocina || "",
@@ -92,28 +197,70 @@ export class EventsService {
     return events;
   }
 
+  static async fetchAllEvents() {
+    const dbClient = getDatabase();
+    const rows = await dbClient.query(
+      `SELECT
+        r.*,
+        c.razon_social as cliente_empresa,
+        c.nombre_completo as contacto
+      FROM reserva r
+      JOIN cliente c ON c.id_cliente = r.id_cliente
+      ORDER BY r.fecha_evento ASC`,
+    );
+
+    return this.mapReservationRows(rows);
+  }
+
+  static async fetchEventsByClientId(clientId: number) {
+    const dbClient = getDatabase();
+    const rows = await dbClient.query(
+      `SELECT
+        r.*,
+        c.razon_social as cliente_empresa,
+        c.nombre_completo as contacto
+      FROM reserva r
+      JOIN cliente c ON c.id_cliente = r.id_cliente
+      WHERE r.id_cliente = ?
+      ORDER BY r.fecha_evento DESC`,
+      [clientId],
+    );
+
+    return this.mapReservationRows(rows);
+  }
+
   static async createEvent(body: any) {
     const dbClient = getDatabase();
 
     // 1. Cliente B2B (obtener o crear)
-    let cliente = await dbClient.queryOne(
-      "SELECT id_cliente FROM cliente WHERE razon_social = ?",
-      [body.clientName],
-    );
-    let idCliente = cliente?.id_cliente;
+    let idCliente = body.clientId ? Number(body.clientId) : undefined;
     if (!idCliente) {
-      const insertResult = await dbClient.execute(
-        `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-          body.clientName,
-          `30-${Date.now().toString().slice(-8)}-1`,
-          body.clientName,
-          `eventos@${body.clientName.toLowerCase().replace(/[^a-z0-9]/g, "") || "cliente"}.com`,
-          "temp_hash",
-        ],
+      const cliente = await dbClient.queryOne<any>(
+        "SELECT id_cliente FROM cliente WHERE razon_social = ?",
+        [body.clientName],
       );
-      idCliente = Number(insertResult.lastInsertId);
+      idCliente = cliente?.id_cliente ? Number(cliente.id_cliente) : undefined;
+
+      if (!idCliente) {
+        const insertResult = await dbClient.execute(
+          `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
+           VALUES (?, ?, ?, ?, ?)
+           RETURNING id_cliente`,
+          [
+            body.clientName,
+            `30-${Date.now().toString().slice(-8)}-1`,
+            body.clientName,
+            `eventos@${body.clientName.toLowerCase().replace(/[^a-z0-9]/g, "") || "cliente"}.com`,
+            "temp_hash",
+          ],
+        );
+        idCliente = Number(
+          insertResult.row?.id_cliente ?? insertResult.lastInsertId,
+        );
+        if (!Number.isSafeInteger(idCliente) || idCliente <= 0) {
+          throw new Error("PostgreSQL no devolvió el ID del cliente creado.");
+        }
+      }
     }
 
     // 2. Reserva
@@ -125,7 +272,8 @@ export class EventsService {
         id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
         cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
         estado_evento, estado_pago, notas_cocina, monto_total, monto_seguro
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING id_reserva`,
       [
         idCliente,
         body.eventDate,
@@ -144,12 +292,17 @@ export class EventsService {
       ],
     );
 
-    const idReserva = Number(reservaResult.lastInsertId);
+    const idReserva = Number(
+      reservaResult.row?.id_reserva ?? reservaResult.lastInsertId,
+    );
+    if (!Number.isSafeInteger(idReserva) || idReserva <= 0) {
+      throw new Error("PostgreSQL no devolvió el ID de la reserva creada.");
+    }
 
     // 3. Detalle de Estaciones
     if (Array.isArray(body.stationIds)) {
       for (const stationSlug of body.stationIds) {
-        const s = await dbClient.queryOne(
+        const s = await dbClient.queryOne<any>(
           "SELECT id_estacion, precio_por_persona FROM estacion WHERE codigo = ?",
           [stationSlug],
         );
@@ -163,6 +316,13 @@ export class EventsService {
         }
       }
     }
+    await persistEventStations(
+      dbClient,
+      idReserva,
+      Array.isArray(body.stationIds) ? body.stationIds : [],
+      Array.isArray(body.extraIds) ? body.extraIds : [],
+      body.guests || 50,
+    );
 
     // 4. Restricciones Alimentarias
     if (body.dietary) {
@@ -192,21 +352,46 @@ export class EventsService {
           [idReserva, "Veganos", body.dietary.veganos, "Menú vegano"],
         );
       }
+      if (body.dietary.hipertensos > 0) {
+        await dbClient.execute(
+          `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
+           VALUES (?, ?, ?, ?)`,
+          [
+            idReserva,
+            "Hipertensos",
+            body.dietary.hipertensos,
+            "Menú bajo en sodio",
+          ],
+        );
+      }
       if (body.dietary.alergias) {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
            VALUES (?, ?, ?, ?)`,
-          [idReserva, "Alergias", 1, body.dietary.alergias],
+          [
+            idReserva,
+            "Alergias",
+            1,
+            String(body.dietary.alergias).slice(0, 200),
+          ],
         );
       }
     }
 
-    // 5. Pago inicial (seña)
+    // 5. Pago inicial (seña o total)
     if (body.depositCents > 0) {
+      const isPaidInFull = body.paymentStatus === "SALDADO";
       await dbClient.execute(
         `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [idReserva, "SEÑA", body.depositCents / 100, 1, 0, "confirmado"],
+        [
+          idReserva,
+          isPaidInFull ? "TOTAL" : "SEÑA",
+          body.depositCents / 100,
+          1,
+          isPaidInFull ? 1 : 0,
+          "confirmado",
+        ],
       );
     }
 
@@ -228,6 +413,17 @@ export class EventsService {
     const dbClient = getDatabase();
     const idReserva = Number(rawId.replace("EV-", ""));
 
+    let endTime: string | null = null;
+    if (updates.startTime) {
+      const [hStr, mStr] = updates.startTime.split(":");
+      const h = Number(hStr);
+      const m = Number(mStr || 0);
+      if (!Number.isNaN(h)) {
+        const endH = (h + 3) % 24;
+        endTime = `${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      }
+    }
+
     await dbClient.execute(
       `UPDATE reserva
        SET
@@ -237,6 +433,7 @@ export class EventsService {
          fecha_actualizacion = CURRENT_TIMESTAMP,
          fecha_evento = COALESCE(?, fecha_evento),
          hora_inicio = COALESCE(?, hora_inicio),
+         hora_fin = COALESCE(?, hora_fin),
          evento_cancelado = COALESCE(?, evento_cancelado)
        WHERE id_reserva = ?`,
       [
@@ -245,9 +442,37 @@ export class EventsService {
         updates.kitchenNotes ?? null,
         updates.eventDate ?? null,
         updates.startTime ?? null,
+        endTime,
         updates.cancelled ?? null,
         idReserva,
       ],
     );
+
+    // Si se salda el evento, registrar el pago del saldo restante en la tabla pago
+    if (updates.paymentStatus === "SALDADO") {
+      const res = await dbClient.queryOne<{ monto_total: number | string }>(
+        `SELECT monto_total FROM reserva WHERE id_reserva = ?`,
+        [idReserva],
+      );
+      if (res) {
+        const montoTotal = Number(res.monto_total) || 0;
+        const pagosRows = await dbClient.query<{ monto: number | string }>(
+          `SELECT monto FROM pago WHERE id_reserva = ? AND estado = 'confirmado'`,
+          [idReserva],
+        );
+        let yaAbonado = 0;
+        for (const p of pagosRows) {
+          yaAbonado += Number(p.monto) || 0;
+        }
+        const saldoRemanente = Math.max(0, montoTotal - yaAbonado);
+        if (saldoRemanente > 0) {
+          await dbClient.execute(
+            `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [idReserva, "SALDO", saldoRemanente, 1, 1, "confirmado"],
+          );
+        }
+      }
+    }
   }
 }

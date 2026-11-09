@@ -2,7 +2,7 @@
  * RegisterForm — Formulario de registro B2B para la pantalla de autenticación.
  */
 import { useState, type FormEvent } from 'react'
-import { Building2, User, Phone, FileText, KeyRound, Mail, UserCheck } from 'lucide-react'
+import { Building2, User, Phone, FileText, KeyRound, Mail, UserCheck, Calendar, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +19,8 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const [cargoResponsable, setCargoResponsable] = useState('')
   const [regEmail, setRegEmail] = useState('')
   const [telefono, setTelefono] = useState('')
+  const [direccionLegal, setDireccionLegal] = useState('')
+  const [fechaAniversario, setFechaAniversario] = useState('')
   const [regPass, setRegPass] = useState('')
   const [confirmPass, setConfirmPass] = useState('')
   
@@ -57,6 +59,8 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         cargoResponsable: cargoResponsable.trim() || undefined,
         email: regEmail.trim(),
         telefono: telefono.trim() || undefined,
+        direccionLegal: direccionLegal.trim() || undefined,
+        fechaAniversario: fechaAniversario.trim() || undefined,
         pass: regPass,
       })
       setRegSuccess(true)
@@ -200,6 +204,41 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             className="pl-10"
             value={telefono}
             onChange={(e) => setTelefono(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Dirección Legal */}
+      <div className="space-y-1.5">
+        <Label htmlFor="reg-direccion" className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+          Dirección legal
+        </Label>
+        <div className="relative">
+          <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            id="reg-direccion"
+            type="text"
+            placeholder="Ej: Av. Leandro N. Alem 1000, CABA"
+            className="pl-10"
+            value={direccionLegal}
+            onChange={(e) => setDireccionLegal(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Fecha de aniversario / fundación */}
+      <div className="space-y-1.5">
+        <Label htmlFor="reg-aniversario" className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+          Fecha de aniversario o fundación
+        </Label>
+        <div className="relative">
+          <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            id="reg-aniversario"
+            type="date"
+            className="pl-10"
+            value={fechaAniversario}
+            onChange={(e) => setFechaAniversario(e.target.value)}
           />
         </div>
       </div>
