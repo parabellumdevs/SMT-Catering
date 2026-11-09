@@ -1,26 +1,35 @@
 import { z } from 'zod'
 
+const emailSchema = z.string().trim().toLowerCase().email('Ingresá un email válido')
+
+const telefonoSchema = z
+  .string()
+  .regex(/^\d{10,13}$/, 'El teléfono debe tener entre 10 y 13 números, sin espacios ni guiones')
+  .optional()
+  .or(z.literal(''))
+
 export const loginSchema = z.object({
   usernameOrEmail: z.string().min(1, 'El usuario o email es requerido'),
   pass: z.string().min(4, 'La contraseña debe tener al menos 4 caracteres'),
 })
 
-export const registerSchema = z
-  .object({
-    razonSocial: z.string().min(3, 'La razón social es requerida'),
-    cuit: z
-      .string()
-      .regex(/^\d{2}-\d{8}-\d{1}$/, 'Formato CUIT: 00-00000000-0')
-      .or(z.string().regex(/^\d{11}$/, 'CUIT debe tener 11 dígitos')),
-    nombreCompleto: z.string().min(2, 'El nombre del responsable es requerido'),
-    cargoResponsable: z.string().optional(),
-    email: z.string().email('Email inválido'),
-    telefono: z.string().optional(),
-    direccionLegal: z.string().max(100, 'La dirección legal no puede superar los 100 caracteres').optional(),
-    fechaAniversario: z.string().optional(),
-    pass: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
-    confirmPass: z.string().min(6, 'Confirmá la contraseña'),
-  })
+export const registerBaseSchema = z.object({
+  razonSocial: z.string().min(3, 'La razón social es requerida'),
+  cuit: z
+    .string()
+    .regex(/^\d{2}-\d{8}-\d{1}$/, 'Formato CUIT: 00-00000000-0')
+    .or(z.string().regex(/^\d{11}$/, 'CUIT debe tener 11 dígitos')),
+  nombreCompleto: z.string().min(2, 'El nombre del responsable es requerido'),
+  cargoResponsable: z.string().optional(),
+  email: emailSchema,
+  telefono: telefonoSchema,
+  direccionLegal: z.string().max(100, 'La dirección legal no puede superar los 100 caracteres').optional(),
+  fechaAniversario: z.string().optional(),
+  pass: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
+})
+
+export const registerSchema = registerBaseSchema
+  .extend({ confirmPass: z.string().min(6, 'Confirmá la contraseña') })
   .refine((d) => d.pass === d.confirmPass, {
     message: 'Las contraseñas no coinciden',
     path: ['confirmPass'],
