@@ -1,10 +1,18 @@
 import { getDatabase } from '../../db/client.ts'
+import { CONCURRENT_GUEST_MAX } from '../../../shared/schemas/quotation.schema.ts'
 
 export class QuotationService {
-  static async checkAvailability(date: string): Promise<{ available: boolean; isConcurrent: boolean }> {
+  static async checkAvailability(
+    date: string,
+    requestedGuests?: number,
+  ): Promise<{ available: boolean; isConcurrent: boolean }> {
     const dbClient = getDatabase()
     const result = await dbClient.queryOne(
-      "SELECT count(*) as count, sum(cantidad_invitados) as total_guests FROM reserva WHERE fecha_evento = ? AND evento_cancelado = 0",
+      `SELECT count(*) as count, sum(cantidad_invitados) as total_guests
+       FROM reserva
+       WHERE fecha_evento = ?
+         AND evento_cancelado = 0
+         AND (estado_evento IS NULL OR estado_evento <> 'Cancelado')`,
       [date],
     )
 
@@ -15,8 +23,15 @@ export class QuotationService {
       return { available: true, isConcurrent: false }
     }
 
-    // Regla de concurrencia cliente: si hay 1 evento con <= 60 comensales, se permite otro de max 60
-    if (count === 1 && totalGuests <= 60) {
+    // Solo se permite concurrencia si ambos eventos tienen como máximo 60 invitados.
+    if (
+      count === 1
+      && totalGuests <= CONCURRENT_GUEST_MAX
+      && (
+        requestedGuests === undefined
+        || (requestedGuests > 0 && requestedGuests <= CONCURRENT_GUEST_MAX)
+      )
+    ) {
       return { available: true, isConcurrent: true }
     }
 

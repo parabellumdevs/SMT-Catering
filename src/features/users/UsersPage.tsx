@@ -182,26 +182,26 @@ export function UsersPage() {
     }
   }
 
-  // Render badge de rol con estilos semánticos
+  // Los roles comparten el acento de marca; el estado conserva colores semánticos.
   const renderRoleBadge = (rol: string) => {
     switch (rol) {
       case 'superadmin':
         return (
-          <span className="inline-flex items-center gap-1 rounded-pill bg-purple-500/10 px-2.5 py-0.5 text-xs font-semibold text-purple-700 dark:text-purple-300 border border-purple-500/20">
+          <span className="inline-flex items-center gap-1 rounded-pill border border-brand/20 bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand">
             <Shield className="w-3 h-3" />
             Superadmin
           </span>
         )
       case 'admin':
         return (
-          <span className="inline-flex items-center gap-1 rounded-pill bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-700 dark:text-blue-300 border border-blue-500/20">
+          <span className="inline-flex items-center gap-1 rounded-pill border border-brand/20 bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand">
             <Users className="w-3 h-3" />
             Administrador
           </span>
         )
       case 'cocina':
         return (
-          <span className="inline-flex items-center gap-1 rounded-pill bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300 border border-amber-500/20">
+          <span className="inline-flex items-center gap-1 rounded-pill border border-brand/20 bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand">
             <ChefHat className="w-3 h-3" />
             Cocina / Jefe Prod.
           </span>
@@ -223,6 +223,7 @@ export function UsersPage() {
                 setEditingStaff(null)
                 setIsStaffModalOpen(true)
               }}
+              variant="brand"
               className="flex items-center gap-2"
             >
               <UserPlus className="w-4 h-4" />
@@ -251,7 +252,7 @@ export function UsersPage() {
           }}
           className={`pb-3 text-sm font-medium flex items-center gap-2 transition-colors border-b-2 -mb-px ${
             activeTab === 'staff'
-              ? 'border-primary text-primary font-semibold'
+              ? 'border-brand text-brand font-semibold'
               : 'border-transparent text-ink-mute hover:text-ink'
           }`}
         >
@@ -270,7 +271,7 @@ export function UsersPage() {
           }}
           className={`pb-3 text-sm font-medium flex items-center gap-2 transition-colors border-b-2 -mb-px ${
             activeTab === 'clients'
-              ? 'border-primary text-primary font-semibold'
+              ? 'border-brand text-brand font-semibold'
               : 'border-transparent text-ink-mute hover:text-ink'
           }`}
         >
@@ -289,7 +290,7 @@ export function UsersPage() {
           }}
           className={`pb-3 text-sm font-medium flex items-center gap-2 transition-colors border-b-2 -mb-px ${
             activeTab === 'client_users'
-              ? 'border-primary text-primary font-semibold'
+              ? 'border-brand text-brand font-semibold'
               : 'border-transparent text-ink-mute hover:text-ink'
           }`}
         >
@@ -325,7 +326,7 @@ export function UsersPage() {
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value as any)}
-              className="text-xs rounded-lg border border-hairline bg-canvas px-3 py-2 text-ink shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              className="text-xs rounded-lg border border-hairline bg-canvas px-3 py-2 text-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
             >
               <option value="todos">Todos los roles</option>
               <option value="superadmin">Superadmin</option>
@@ -341,7 +342,7 @@ export function UsersPage() {
             <select
               value={clientStatusFilter}
               onChange={(e) => setClientStatusFilter(e.target.value as any)}
-              className="text-xs rounded-lg border border-hairline bg-canvas px-3 py-2 text-ink shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              className="text-xs rounded-lg border border-hairline bg-canvas px-3 py-2 text-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
             >
               <option value="todos">Todos los estados</option>
               <option value="activos">Habilitados</option>
@@ -379,7 +380,7 @@ export function UsersPage() {
                     <TR key={user.id_usuario}>
                       <TD>
                         <div className="flex items-center gap-2.5">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-subdued text-primary-deep text-xs font-semibold">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand/10 text-brand text-xs font-semibold">
                             {user.nombre_completo.charAt(0).toUpperCase()}
                           </div>
                           <div className="flex flex-col">
@@ -424,7 +425,7 @@ export function UsersPage() {
                             >
                               <Power
                                 className={`w-3.5 h-3.5 ${
-                                  user.activo ? 'text-ink-mute' : 'text-emerald-600'
+                                  user.activo ? 'text-ink-mute' : 'text-brand'
                                 }`}
                               />
                             </button>
@@ -439,7 +440,7 @@ export function UsersPage() {
                               setEditingStaff(user)
                               setIsStaffModalOpen(true)
                             }}
-                            className="p-1.5 rounded-md text-ink-mute hover:text-primary hover:bg-canvas-soft transition-colors"
+                            className="p-1.5 rounded-md text-ink-mute hover:text-brand hover:bg-brand/5 transition-colors"
                             title="Editar usuario"
                           >
                             <Edit2 className="w-4 h-4" />
@@ -449,7 +450,7 @@ export function UsersPage() {
                             <button
                               type="button"
                               onClick={() => handleDeleteStaff(user)}
-                              className="p-1.5 rounded-md text-ink-mute hover:text-state-danger hover:bg-canvas-soft transition-colors"
+                              className="p-1.5 rounded-md text-ink-mute hover:text-state-danger hover:bg-state-danger-bg transition-colors"
                               title="Eliminar colaborador"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -525,7 +526,7 @@ export function UsersPage() {
                           setEditingClient(client)
                           setIsClientModalOpen(true)
                         }}
-                        className="p-1.5 rounded-md text-ink-mute hover:text-primary hover:bg-canvas-soft transition-colors"
+                        className="p-1.5 rounded-md text-ink-mute hover:text-brand hover:bg-brand/5 transition-colors"
                         title="Editar datos de la empresa"
                       >
                         <Edit2 className="w-4 h-4" />
@@ -562,7 +563,7 @@ export function UsersPage() {
                     <TR key={client.id_cliente}>
                       <TD>
                         <div className="flex items-center gap-2.5">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-700 text-xs font-semibold">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand/10 text-brand text-xs font-semibold">
                             {client.nombre_completo.charAt(0).toUpperCase()}
                           </div>
                           <div className="flex flex-col">
@@ -601,12 +602,12 @@ export function UsersPage() {
                           <button
                             type="button"
                             onClick={() => handleToggleClientStatus(client)}
-                            className="p-1 text-ink-mute hover:text-ink transition-colors rounded hover:bg-canvas-soft"
+                            className="p-1 text-ink-mute hover:text-brand transition-colors rounded hover:bg-brand/5"
                             title={isActivo ? 'Inhabilitar acceso al cliente' : 'Habilitar acceso al cliente'}
                           >
                             <Power
                               className={`w-3.5 h-3.5 ${
-                                isActivo ? 'text-ink-mute hover:text-rose-600' : 'text-emerald-600'
+                                isActivo ? 'text-ink-mute hover:text-state-danger' : 'text-brand'
                               }`}
                             />
                           </button>
@@ -621,7 +622,7 @@ export function UsersPage() {
                               setPasswordTargetClient(client)
                               setIsPasswordModalOpen(true)
                             }}
-                            className="h-8 text-xs flex items-center gap-1.5 text-amber-700 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
+                            className="h-8 text-xs flex items-center gap-1.5 text-brand border-brand/20 hover:bg-brand/10"
                             title="Blanquear o cambiar contraseña"
                           >
                             <KeyRound className="w-3.5 h-3.5" />
@@ -634,7 +635,7 @@ export function UsersPage() {
                               setEditingClient(client)
                               setIsClientModalOpen(true)
                             }}
-                            className="p-1.5 rounded-md text-ink-mute hover:text-primary hover:bg-canvas-soft transition-colors"
+                            className="p-1.5 rounded-md text-ink-mute hover:text-brand hover:bg-brand/5 transition-colors"
                             title="Editar usuario y empresa"
                           >
                             <Edit2 className="w-4 h-4" />

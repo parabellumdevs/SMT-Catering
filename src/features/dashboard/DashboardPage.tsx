@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/AppShell'
 import { cn, daysUntil } from '@/lib/utils'
@@ -11,6 +12,7 @@ import {
 import { api } from '@/lib/api'
 
 type EventTab = 'proximos' | 'pasados' | 'cancelados'
+const EVENTS_PER_PAGE = 10
 
 /**
  * Módulo 2 — Dashboard Centralizado de Eventos y Costos.
@@ -18,6 +20,7 @@ type EventTab = 'proximos' | 'pasados' | 'cancelados'
 export function DashboardPage() {
   const { data: events = [], isLoading, refetch } = useEvents()
   const [currentTab, setCurrentTab] = useState<EventTab>('proximos')
+  const [currentPage, setCurrentPage] = useState(1)
 
   // Filtrado exclusivo por pestaña (Próximos / Pasados / Cancelados)
   const visible = useMemo(() => {
@@ -30,6 +33,29 @@ export function DashboardPage() {
       return false
     })
   }, [events, currentTab])
+
+  const sortedVisible = useMemo(
+    () => [...visible].sort((a, b) => (
+      currentTab === 'proximos'
+        ? a.eventDate.localeCompare(b.eventDate)
+        : b.eventDate.localeCompare(a.eventDate)
+    )),
+    [visible, currentTab],
+  )
+  const pageCount = Math.ceil(sortedVisible.length / EVENTS_PER_PAGE)
+  const activePage = Math.min(
+    currentPage,
+    Math.max(1, pageCount),
+  )
+  const paginatedEvents = useMemo(
+    () => sortedVisible.slice(
+      (activePage - 1) * EVENTS_PER_PAGE,
+      activePage * EVENTS_PER_PAGE,
+    ),
+    [sortedVisible, activePage],
+  )
+  const firstItem = sortedVisible.length === 0 ? 0 : (activePage - 1) * EVENTS_PER_PAGE + 1
+  const lastItem = Math.min(activePage * EVENTS_PER_PAGE, sortedVisible.length)
 
   const summary = useMemo(() => summarizeEvents(events), [events])
 
@@ -97,7 +123,10 @@ export function DashboardPage() {
           <div className="flex items-center bg-gray-100/80 p-1 rounded-xl border border-gray-200/60">
             <button
               type="button"
-              onClick={() => setCurrentTab('proximos')}
+              onClick={() => {
+                setCurrentTab('proximos')
+                setCurrentPage(1)
+              }}
               className={cn(
                 'px-4 py-1.5 text-xs font-semibold rounded-lg transition-all',
                 currentTab === 'proximos'
@@ -109,7 +138,10 @@ export function DashboardPage() {
             </button>
             <button
               type="button"
-              onClick={() => setCurrentTab('pasados')}
+              onClick={() => {
+                setCurrentTab('pasados')
+                setCurrentPage(1)
+              }}
               className={cn(
                 'px-4 py-1.5 text-xs font-semibold rounded-lg transition-all',
                 currentTab === 'pasados'
@@ -121,7 +153,10 @@ export function DashboardPage() {
             </button>
             <button
               type="button"
-              onClick={() => setCurrentTab('cancelados')}
+              onClick={() => {
+                setCurrentTab('cancelados')
+                setCurrentPage(1)
+              }}
               className={cn(
                 'px-4 py-1.5 text-xs font-semibold rounded-lg transition-all',
                 currentTab === 'cancelados'
@@ -148,20 +183,53 @@ export function DashboardPage() {
         {!isLoading && visible.length > 0 && (
           <>
             <EventTable
-              events={visible}
+              events={paginatedEvents}
               isNext={currentTab === 'proximos'}
               onReschedule={handleRescheduleEvent}
               onCancel={handleCancelEvent}
               onPayBalance={handlePayBalance}
             />
             <EventCards
-              events={visible}
+              events={paginatedEvents}
               isNext={currentTab === 'proximos'}
               onReschedule={handleRescheduleEvent}
               onCancel={handleCancelEvent}
               onPayBalance={handlePayBalance}
             />
           </>
+        )}
+        {!isLoading && pageCount > 1 && (
+          <nav
+            aria-label="Paginación de eventos"
+            className="flex flex-col gap-3 rounded-xl border border-gray-200/80 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <p className="text-xs text-gray-500" aria-live="polite">
+              Mostrando {firstItem}–{lastItem} de {sortedVisible.length} eventos
+            </p>
+            <div className="flex items-center justify-between gap-2 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={activePage === 1}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Anterior
+              </button>
+              <span className="min-w-20 text-center text-xs font-medium text-gray-600">
+                Página {activePage} de {pageCount}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
+                disabled={activePage === pageCount}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Siguiente
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </nav>
         )}
       </div>
     </>

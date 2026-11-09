@@ -93,7 +93,7 @@ export function StaffModal({
         </button>
 
         <div className="flex items-center gap-3 mb-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-subdued text-primary-deep">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-brand/15 bg-brand/10 text-brand">
             {isEditing ? <Shield className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
           </div>
           <div>
@@ -172,7 +172,7 @@ export function StaffModal({
                 id="rol"
                 value={rol}
                 onChange={(e) => setRol(e.target.value as any)}
-                className="w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
               >
                 <option value="cocina">Chef / Cocina</option>
                 <option value="admin">Administrador (Socia)</option>
@@ -190,7 +190,7 @@ export function StaffModal({
                     type="checkbox"
                     checked={activo}
                     onChange={(e) => setActivo(e.target.checked)}
-                    className="h-4 w-4 rounded border-hairline text-primary focus:ring-primary"
+                    className="h-4 w-4 rounded border-hairline text-brand focus:ring-brand"
                   />
                   <span>{activo ? 'Activo' : 'Inactivo'}</span>
                 </label>
@@ -202,7 +202,7 @@ export function StaffModal({
             <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" variant="brand" disabled={loading}>
               {loading ? 'Guardando…' : isEditing ? 'Guardar Cambios' : 'Crear Colaborador'}
             </Button>
           </div>
