@@ -648,7 +648,8 @@ var EventsService = class {
     if (!idCliente) {
       const insertResult = await dbClient.execute(
         `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
-         VALUES (?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?)
+         RETURNING id_cliente`,
         [
           body.clientName,
           `30-${Date.now().toString().slice(-8)}-1`,
@@ -657,7 +658,10 @@ var EventsService = class {
           "temp_hash"
         ]
       );
-      idCliente = Number(insertResult.lastInsertId);
+      idCliente = Number(insertResult.row?.id_cliente);
+      if (!Number.isSafeInteger(idCliente) || idCliente <= 0) {
+        throw new Error("PostgreSQL no devolvi\xF3 el ID del cliente creado.");
+      }
     }
     const totalPesos = (body.totalCents || 0) / 100;
     const seguroPesos = (body.insuranceCents || 0) / 100;
@@ -666,7 +670,8 @@ var EventsService = class {
         id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
         cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
         estado_evento, estado_pago, notas_cocina, monto_total, monto_seguro
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING id_reserva`,
       [
         idCliente,
         body.eventDate,
@@ -684,7 +689,10 @@ var EventsService = class {
         seguroPesos
       ]
     );
-    const idReserva = Number(reservaResult.lastInsertId);
+    const idReserva = Number(reservaResult.row?.id_reserva);
+    if (!Number.isSafeInteger(idReserva) || idReserva <= 0) {
+      throw new Error("PostgreSQL no devolvi\xF3 el ID de la reserva creada.");
+    }
     if (Array.isArray(body.stationIds)) {
       for (const stationSlug of body.stationIds) {
         const s = await dbClient.queryOne(
@@ -818,7 +826,6 @@ var EventsController = class {
   }
   static async create(req, res) {
     try {
-      console.log("Creating event with data:", req.body);
       const event = await EventsService.createEvent(req.body || {});
       res.status(201).json({ event });
     } catch (error) {
@@ -1558,10 +1565,12 @@ profileRouter.post("/change-password", authGuard, requireRoles(["cliente"]), Pro
 import { randomUUID } from "node:crypto";
 var PaymentError = class extends Error {
   statusCode;
-  constructor(message, statusCode = 400) {
+  object;
+  constructor(message, statusCode = 400, object) {
     super(message);
     this.name = "PaymentError";
     this.statusCode = statusCode;
+    this.object = object;
   }
 };
 var DEPOSIT_PERCENT = 50;
@@ -1764,11 +1773,12 @@ var PaymentsService = class {
       `/v1/payments/${encodeURIComponent(paymentId)}`,
       { method: "GET" }
     );
-    const matchesCheckout = payment.status === "approved" && payment.currency_id === "ARS" && payment.external_reference === externalReference && payment.preference_id === checkout.preference_id && Math.round(payment.transaction_amount * 100) === Number(checkout.expected_amount_cents);
+    const matchesCheckout = payment.status === "approved" && payment.currency_id === "ARS" && payment.external_reference === externalReference && Math.round(payment.transaction_amount * 100) === Number(checkout.expected_amount_cents);
     if (!matchesCheckout) {
       throw new PaymentError(
         "Mercado Pago todav\xEDa no confirma el pago de esta reserva.",
-        402
+        402,
+        matchesCheckout
       );
     }
     const claim = await db3.execute(
@@ -1793,10 +1803,6 @@ var PaymentsService = class {
       );
     }
     try {
-      console.log(
-        "Creando evento con datos de reserva:",
-        checkout.reservation_data
-      );
       const event = await EventsService.createEvent(checkout.reservation_data);
       if (!event?.id) {
         throw new Error(
