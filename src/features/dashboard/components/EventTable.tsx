@@ -19,10 +19,6 @@ import { formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import type { EventRecord } from '@/types/domain'
 
-const EXTRA_LABELS: Record<string, string> = {
-  'extra-barra': 'Barra de tragos',
-}
-
 interface EventTableProps {
   readonly events: EventRecord[]
   readonly isNext?: boolean
@@ -148,7 +144,7 @@ function EventActions({
 function StationBadges({ event }: { readonly event: EventRecord }) {
   const selectedIds = [...(event.stationIds ?? []), ...(event.extraIds ?? [])]
   const stations = selectedIds.length > 0
-    ? selectedIds.map((id) => EXTRA_LABELS[id] ?? stationById(id).name)
+    ? selectedIds.map((id) => stationById(id).name)
     : ['Entrada', 'Parrilla', 'Dulce']
 
   return (
