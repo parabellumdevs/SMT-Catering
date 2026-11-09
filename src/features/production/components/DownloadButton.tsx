@@ -2,10 +2,15 @@ import jsPDF from "jspdf"
 import { formatEventRestrictions } from "../utils/formatEventTestrictions"
 import type { EventRecord } from "@/types/domain"
 import { stationById } from "@/lib/constants"
+import { getOtherApprovedEventsOnSameDate } from "../utils/getApprovedEventsOnSameDate"
 
 /** Genera y descarga el PDF técnico individual para la cocina */
-export function handleDownloadPdf(event: EventRecord) {
+export function handleDownloadPdf(
+  event: EventRecord,
+  events: readonly EventRecord[] = [],
+) {
   const doc = new jsPDF()
+  const sameDateApprovedEvents = getOtherApprovedEventsOnSameDate(event, events)
 
   // Cabecera institucional Borravino
   doc.setFillColor(61, 16, 26)
@@ -27,17 +32,44 @@ export function handleDownloadPdf(event: EventRecord) {
   doc.setDrawColor(200, 200, 200)
   doc.line(14, 83, 196, 83)
 
+  let contentStartY = 93
+  if (sameDateApprovedEvents.length > 0) {
+    const warningLines = doc.splitTextToSize(
+      [
+        `ATENCIÓN: Hay ${sameDateApprovedEvents.length + 1} eventos aprobados para producción en esta fecha.`,
+        `También se realizarán: ${sameDateApprovedEvents.map((sameDateEvent) => `${sameDateEvent.id} — ${sameDateEvent.clientName}`).join('; ')}`,
+      ].join('\n'),
+      170,
+    )
+    const warningHeight = warningLines.length * 6 + 8
+    doc.setFillColor(254, 243, 199)
+    doc.setDrawColor(217, 119, 6)
+    doc.roundedRect(14, 89, 182, warningHeight, 2, 2, 'FD')
+    doc.setTextColor(120, 53, 15)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text(warningLines, 19, 96)
+    doc.setFont('helvetica', 'normal')
+    contentStartY = 89 + warningHeight + 8
+  }
+
   // Ubicación / Dirección de entrega (💡 Agregado aquí)
+  doc.setTextColor(40, 40, 40)
   doc.setFontSize(13)
-  doc.text('Ubicación de Entrega:', 14, 93)
+  doc.text('Ubicación de Entrega:', 14, contentStartY)
   doc.setFontSize(11)
-  doc.text(event.locationAddress || 'Av. Corrientes 1234, CABA', 20, 101)
+  const addressLines = doc.splitTextToSize(
+    event.locationAddress || 'Av. Corrientes 1234, CABA',
+    170,
+  )
+  doc.text(addressLines, 20, contentStartY + 8)
 
   // Estaciones / Islas contratadas
+  let y = contentStartY + 14 + addressLines.length * 5
   doc.setFontSize(13)
-  doc.text('Estaciones / Islas Contratadas:', 14, 115)
+  doc.text('Estaciones / Islas Contratadas:', 14, y)
   doc.setFontSize(11)
-  let y = 123
+  y += 8
   event.stationIds.forEach((id) => {
     doc.text(`• ${stationById(id).name}`, 20, y)
     y += 7

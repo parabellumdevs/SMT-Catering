@@ -4,8 +4,10 @@
 import { MapPin, Download, Users, Clock, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { stationById } from '@/lib/constants'
+import { useEventStore } from '@/stores/eventStore'
 import type { EventRecord } from '@/types/domain'
 import { handleDownloadPdf } from './DownloadButton'
+import { getOtherApprovedEventsOnSameDate } from '../utils/getApprovedEventsOnSameDate'
 
 /** Helper para formatear restricciones de forma singular o plural según corresponda */
 function formatEventRestrictions(event: EventRecord): string {
@@ -43,6 +45,8 @@ function formatShortTime(timeStr?: string): string {
 
 export function ComandaTicket({ event }: { readonly event: EventRecord }) {
   const { dietary } = event
+  const events = useEventStore((state) => state.events)
+  const sameDateApprovedEvents = getOtherApprovedEventsOnSameDate(event, events)
   const hasRestrictions =
     (dietary.celiacos && dietary.celiacos > 0) ||
     (dietary.vegetarianos && dietary.vegetarianos > 0) ||
@@ -95,6 +99,25 @@ export function ComandaTicket({ event }: { readonly event: EventRecord }) {
 
         {/* Estaciones y Restricciones */}
         <div className="space-y-2">
+          {sameDateApprovedEvents.length > 0 && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+              <div>
+                <p className="font-bold">
+                  Atención: hay {sameDateApprovedEvents.length + 1} eventos aprobados para producción en esta fecha.
+                </p>
+                <p>
+                  También se realizarán:{' '}
+                  {sameDateApprovedEvents
+                    .map((sameDateEvent) => `${sameDateEvent.id} — ${sameDateEvent.clientName}`)
+                    .join('; ')}
+                </p>
+              </div>
+            </div>
+          )}
           <div className="flex items-baseline gap-2">
             <span className="text-xs font-semibold text-gray-500 min-w-28 shrink-0">
               Estaciones:
@@ -134,7 +157,7 @@ export function ComandaTicket({ event }: { readonly event: EventRecord }) {
           variant="brand" 
           size="sm" 
           className="gap-1.5 shrink-0 rounded-lg cursor-pointer"
-          onClick={() => handleDownloadPdf(event)}
+          onClick={() => handleDownloadPdf(event, events)}
         >
           <Download className="h-3.5 w-3.5" />
           Descargar comanda
