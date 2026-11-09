@@ -20,6 +20,7 @@ try {
     DashboardPage: '/src/features/dashboard/DashboardPage.tsx',
     ComandaListPage: '/src/features/production/ComandasPage.tsx',
     PricingPage: '/src/features/pricing/PricingPage.tsx',
+    MetricsPage: '/src/features/metrics/MetricsPage.tsx',
     AppShell: '/src/components/layout/AppShell.tsx',
   }
 
