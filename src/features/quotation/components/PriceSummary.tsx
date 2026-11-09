@@ -9,7 +9,7 @@ import { useQuotationCalculator } from '@/features/quotation/hooks/useQuotationC
 import { useTariffStore } from '@/stores/tariffStore'
 import { formatCurrency } from '@/lib/utils'
 import { useQuotationStore } from '@/stores/quotationStore'
-import type { DietaryRequirement } from '@/types/domain'
+import type { CustomObservation, DietaryRequirement } from '@/types/domain'
 
 /** Etiquetas del medio de pago elegido, para reflejarlas en el modal de confirmación. */
 const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -21,6 +21,82 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 type PaymentMethod = 'transferencia' | 'factura' | 'tarjeta'
 const PENDING_CHECKOUT_KEY = 'smt-pending-mercado-pago-checkout'
 
+type UnknownRecord = Record<string, unknown>
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isCustomObservation(value: unknown): value is CustomObservation {
+  if (!isRecord(value)) return false
+  return typeof value.id === 'string'
+    && typeof value.description === 'string'
+    && typeof value.count === 'number'
+    && Number.isInteger(value.count)
+    && value.count >= 0
+}
+
+function isGeoPoint(value: unknown): value is { lat: number; lng: number } {
+  if (!isRecord(value)) return false
+  return typeof value.lat === 'number'
+    && Number.isFinite(value.lat)
+    && typeof value.lng === 'number'
+    && Number.isFinite(value.lng)
+}
+
+function getRestoredCheckoutQuotation(value: unknown) {
+  if (!isRecord(value) || !isRecord(value.eventData)) return null
+
+  const reservation = value.eventData
+  const rawStationIds = reservation.stationIds
+  const rawExtraIds = reservation.extraIds
+  const dietary = reservation.dietary
+  if (
+    typeof reservation.guests !== 'number'
+    || typeof reservation.eventDate !== 'string'
+    || !Array.isArray(rawStationIds)
+    || !Array.isArray(rawExtraIds)
+    || !isRecord(dietary)
+    || typeof dietary.celiacos !== 'number'
+    || typeof dietary.vegetarianos !== 'number'
+    || typeof dietary.veganos !== 'number'
+    || typeof dietary.alergias !== 'string'
+  ) {
+    return null
+  }
+
+  const stationIds = rawStationIds.filter(
+    (id): id is EstacionId => typeof id === 'string'
+      && ESTACIONES_GASTRONOMICAS.some((station) => station.id === id),
+  )
+  if (stationIds.length !== rawStationIds.length) return null
+
+  return {
+    guests: reservation.guests,
+    eventDate: reservation.eventDate,
+    stationIds,
+    extraIds: rawExtraIds.filter((id): id is string => typeof id === 'string'),
+    dietary: {
+      celiacos: dietary.celiacos,
+      vegetarianos: dietary.vegetarianos,
+      veganos: dietary.veganos,
+      hipertensos: typeof dietary.hipertensos === 'number' ? dietary.hipertensos : 0,
+      alergias: dietary.alergias,
+      customObservations: Array.isArray(dietary.customObservations)
+        ? dietary.customObservations.filter(isCustomObservation)
+        : [],
+    } satisfies DietaryRequirement,
+    startTime: typeof reservation.startTime === 'string' ? reservation.startTime : undefined,
+    locationAddress: typeof reservation.locationAddress === 'string'
+      ? reservation.locationAddress
+      : '',
+    locationDistanceKm: typeof reservation.distanceKm === 'number'
+      ? reservation.distanceKm
+      : null,
+    locationPoint: isGeoPoint(value.locationPoint) ? value.locationPoint : null,
+  }
+}
+
 export function PriceSummaryPanel() {
   const location = useLocation()
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -29,6 +105,7 @@ export function PriceSummaryPanel() {
   const guests = useQuotationStore((s) => s.guests)
   const eventDate = useQuotationStore((s) => s.eventDate)
   const stationIds = useQuotationStore((s) => s.stationIds)
+  const locationPoint = useQuotationStore((s) => s.locationPoint)
   const tariffs = useTariffStore((s) => s.tariffs)
 
   useEffect(() => {
@@ -42,84 +119,17 @@ export function PriceSummaryPanel() {
       const saved = sessionStorage.getItem(PENDING_CHECKOUT_KEY)
       if (!saved) return
 
-      const parsed: unknown = JSON.parse(saved)
-      if (
-        typeof parsed !== 'object'
-        || parsed === null
-        || !('eventData' in parsed)
-        || typeof parsed.eventData !== 'object'
-        || parsed.eventData === null
-      ) {
-        return
-      }
-
-      const reservation = parsed.eventData
-      if (
-        !('guests' in reservation)
-        || typeof reservation.guests !== 'number'
-        || !('eventDate' in reservation)
-        || typeof reservation.eventDate !== 'string'
-        || !('stationIds' in reservation)
-        || !Array.isArray(reservation.stationIds)
-        || !('extraIds' in reservation)
-        || !Array.isArray(reservation.extraIds)
-        || !('dietary' in reservation)
-        || typeof reservation.dietary !== 'object'
-        || reservation.dietary === null
-      ) {
-        return
-      }
-
-      const restoredStationIds = reservation.stationIds.filter(
-        (id): id is EstacionId => typeof id === 'string'
-          && ESTACIONES_GASTRONOMICAS.some((station) => station.id === id),
-      )
-      const savedDietary = reservation.dietary
-      if (
-        restoredStationIds.length !== reservation.stationIds.length
-        || !('celiacos' in savedDietary)
-        || typeof savedDietary.celiacos !== 'number'
-        || !('vegetarianos' in savedDietary)
-        || typeof savedDietary.vegetarianos !== 'number'
-        || !('veganos' in savedDietary)
-        || typeof savedDietary.veganos !== 'number'
-        || !('alergias' in savedDietary)
-        || typeof savedDietary.alergias !== 'string'
-      ) {
-        return
-      }
-
-      useQuotationStore.setState({
-        guests: reservation.guests,
-        eventDate: reservation.eventDate,
-        stationIds: restoredStationIds,
-        extraIds: reservation.extraIds.filter((id): id is string => typeof id === 'string'),
-        dietary: {
-          celiacos: savedDietary.celiacos,
-          vegetarianos: savedDietary.vegetarianos,
-          veganos: savedDietary.veganos,
-          alergias: savedDietary.alergias,
-        } satisfies DietaryRequirement,
-        startTime: 'startTime' in reservation && typeof reservation.startTime === 'string'
-          ? reservation.startTime
-          : undefined,
-        locationAddress: 'locationAddress' in reservation
-          && typeof reservation.locationAddress === 'string'
-          ? reservation.locationAddress
-          : '',
-        locationDistanceKm: 'distanceKm' in reservation
-          && typeof reservation.distanceKm === 'number'
-          ? reservation.distanceKm
-          : null,
-      })
+      const restoredQuotation = getRestoredCheckoutQuotation(JSON.parse(saved))
+      if (restoredQuotation) useQuotationStore.setState(restoredQuotation)
     } catch (error) {
       console.error('No se pudo restaurar la cotización al volver de Mercado Pago:', error)
     }
   }, [location.search])
   
-  // 💡 Obtenemos insuranceCents del calculador
   const { totalCents, depositCents, balanceCents, insuranceCents } = useQuotationCalculator()
-  const canConfirm = Boolean(eventDate) && stationIds.length > 0
+
+  // Se combinan las condiciones de fecha, estaciones y ubicación geográfica
+  const canConfirm = Boolean(eventDate) && stationIds.length > 0 && locationPoint !== null
 
   const selectedStations = ESTACIONES_GASTRONOMICAS.filter((s) => stationIds.includes(s.id))
 
@@ -158,7 +168,7 @@ export function PriceSummaryPanel() {
               })
             )}
 
-            {/* 💡 Muestra el seguro si aplica */}
+            {/* Muestra el seguro si aplica */}
             {insuranceCents > 0 && (
               <div className="flex justify-between items-center text-ink-secondary">
                 <span>🛡️ Seguro del evento</span>
@@ -259,6 +269,7 @@ export function PriceSummaryPanel() {
           </div>
         </div>
       </div>
+
       <ConfirmEventModal
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
