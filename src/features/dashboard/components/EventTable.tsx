@@ -152,7 +152,7 @@ export function EventTable({
                             : "bg-blue-50 text-blue-700 border border-blue-200"
                       }`}
                     >
-                      {record.paymentStatus}
+                      {paymentLabel}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
