@@ -200,31 +200,7 @@ export function PriceSummaryPanel() {
             <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-mute block">Medio de Pago</span>
             
             <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('transferencia')}
-                className={`w-full flex items-center justify-between p-3 rounded-lg border text-xs transition-all ${
-                  paymentMethod === 'transferencia' ? 'border-[#581c25] bg-[#581c25]/5 font-medium text-ink' : 'border-hairline text-ink-secondary hover:bg-canvas-soft'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <Landmark className="h-4 w-4 text-[#581c25]" /> Transferencia Bancaria
-                </span>
-                <span className={`h-3 w-3 rounded-full border flex items-center justify-center ${paymentMethod === 'transferencia' ? 'border-[#581c25] bg-[#581c25]' : 'border-hairline'}`} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('factura')}
-                className={`w-full flex items-center justify-between p-3 rounded-lg border text-xs transition-all ${
-                  paymentMethod === 'factura' ? 'border-[#581c25] bg-[#581c25]/5 font-medium text-ink' : 'border-hairline text-ink-secondary hover:bg-canvas-soft'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-[#581c25]" /> Factura A
-                </span>
-                <span className={`h-3 w-3 rounded-full border flex items-center justify-center ${paymentMethod === 'factura' ? 'border-[#581c25] bg-[#581c25]' : 'border-hairline'}`} />
-              </button>
+             
 
               <button
                 type="button"
