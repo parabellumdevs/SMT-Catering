@@ -21,7 +21,7 @@ import type { GeoPoint } from '@shared/geo'
 const PENDING_CHECKOUT_KEY = 'smt-pending-mercado-pago-checkout'
 
 type PaymentMethod = 'transferencia' | 'factura' | 'tarjeta'
-type CheckoutEventData = Omit<EventRecord, 'id'> & { extraIds: string[] }
+type CheckoutEventData = Omit<EventRecord, 'id'> & { extraIds?: string[] }
 
 interface PendingCheckout {
   eventData: CheckoutEventData
@@ -212,6 +212,7 @@ export function ConfirmEventModal({
       eventDate,
       guests,
       stationIds,
+      extraIds,
       status: 'Señado / Confirmado',
       paymentStatus,
       totalCents,
@@ -239,7 +240,7 @@ export function ConfirmEventModal({
           externalReference: string
         }>('/api/payments/preference', {
           initialPayment,
-          reservation: { ...eventData, extraIds },
+          reservation: eventData,
         })
 
         if (!checkout.initPoint || !checkout.externalReference) {
@@ -247,7 +248,7 @@ export function ConfirmEventModal({
         }
 
         const pending: PendingCheckout = {
-          eventData: { ...eventData, extraIds },
+          eventData,
           initialPayment,
           locationPoint: locationPoint ?? undefined,
           externalReference: checkout.externalReference,

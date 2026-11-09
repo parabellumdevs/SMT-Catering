@@ -68,6 +68,7 @@ export interface EventRecord {
   eventDate: string; // ISO yyyy-mm-dd
   guests: number;
   stationIds: StationId[];
+  extraIds?: string[];
   status: EventStatus;
   paymentStatus: PaymentStatus;
   cancelled: boolean;

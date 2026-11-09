@@ -6,6 +6,7 @@ import type { EventRecord } from "@/types/domain";
 export function useEvents(): {
   data: EventRecord[];
   isLoading: boolean;
+  isLoaded: boolean;
   refetch: () => Promise<void>;
 } {
   const events = useEventStore((s) => s.events);
@@ -19,7 +20,7 @@ export function useEvents(): {
     }
   }, [isLoaded, fetchEvents]);
 
-  return { data: events, isLoading, refetch: fetchEvents };
+  return { data: events, isLoading, isLoaded, refetch: fetchEvents };
 }
 
 export interface EventsSummary {

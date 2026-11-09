@@ -1,5 +1,106 @@
 import { getDatabase } from "../../db/client.ts";
 
+interface EventStationRow {
+  codigo: string;
+  id_estacion: number;
+  precio_por_persona: number | string;
+}
+
+async function persistEventStations(
+  dbClient: ReturnType<typeof getDatabase>,
+  idReserva: number,
+  stationIds: string[],
+  extraIds: string[],
+  guests: number,
+): Promise<void> {
+  const selectedIds = [...new Set([...stationIds, ...extraIds])];
+  if (selectedIds.length === 0) return;
+
+  const placeholders = selectedIds.map(() => "?").join(", ");
+  const stationRows = await dbClient.query<EventStationRow>(
+    `SELECT codigo, id_estacion, precio_por_persona
+     FROM estacion
+     WHERE codigo IN (${placeholders})`,
+    selectedIds,
+  );
+  const stations = new Map(
+    stationRows.map((station) => [station.codigo, station]),
+  );
+  const missingExtras = extraIds.filter((id) => !stations.has(id));
+
+  if (missingExtras.length > 0) {
+    const extraPlaceholders = missingExtras.map(() => "?").join(", ");
+    const tariffs = await dbClient.query<{
+      id: string;
+      label: string;
+      price_per_guest_cents: number | string;
+    }>(
+      `SELECT id, label, price_per_guest_cents
+       FROM tarifas
+       WHERE category = 'extra' AND is_active = 1 AND id IN (${extraPlaceholders})`,
+      missingExtras,
+    );
+    const tariffsById = new Map(tariffs.map((tariff) => [tariff.id, tariff]));
+
+    const insertedExtras = await Promise.all(
+      missingExtras.map(async (id) => {
+        const tariff = tariffsById.get(id);
+        if (!tariff) {
+          throw new Error(
+            `No se encontró la tarifa del adicional seleccionado: ${id}`,
+          );
+        }
+
+        const result = await dbClient.execute(
+          `INSERT INTO estacion (codigo, nombre, tipo_comida, descripcion, precio_por_persona)
+         VALUES (?, ?, 'extra', ?, ?)
+         ON CONFLICT (codigo) DO UPDATE
+         SET nombre = EXCLUDED.nombre,
+             descripcion = EXCLUDED.descripcion,
+             precio_por_persona = EXCLUDED.precio_por_persona
+         RETURNING id_estacion, precio_por_persona`,
+          [
+            id,
+            tariff.label,
+            tariff.label,
+            Number(tariff.price_per_guest_cents) / 100,
+          ],
+        );
+        if (!result.row) {
+          throw new Error(
+            `No se pudo registrar el adicional seleccionado: ${id}`,
+          );
+        }
+
+        return {
+          codigo: id,
+          id_estacion: result.row.id_estacion,
+          precio_por_persona: result.row.precio_por_persona,
+        };
+      }),
+    );
+
+    for (const station of insertedExtras) {
+      stations.set(station.codigo, station);
+    }
+  }
+
+  await Promise.all(
+    selectedIds.map(async (id) => {
+      const station = stations.get(id);
+      if (!station) {
+        throw new Error(`No se encontró la estación seleccionada: ${id}`);
+      }
+      const subtotal = Number(station.precio_por_persona) * guests;
+      await dbClient.execute(
+        `INSERT INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado)
+       VALUES (?, ?, ?)`,
+        [idReserva, station.id_estacion, subtotal],
+      );
+    }),
+  );
+}
+
 export class EventsService {
   private static async mapReservationRows(rows: any[]) {
     const dbClient = getDatabase();
@@ -33,6 +134,7 @@ export class EventsService {
         let celiacos = 0;
         let vegetarianos = 0;
         let veganos = 0;
+        let hipertensos = 0;
         const alergias: string[] = [];
 
         for (const d of dietaryRows) {
@@ -40,6 +142,8 @@ export class EventsService {
           if (tipo.includes("celia")) celiacos += d.cantidad_personas;
           else if (tipo.includes("vege")) vegetarianos += d.cantidad_personas;
           else if (tipo.includes("vega")) veganos += d.cantidad_personas;
+          else if (tipo.includes("hipertens"))
+            hipertensos += d.cantidad_personas;
           else if (tipo.includes("alerg")) {
             if (d.observaciones) alergias.push(d.observaciones);
           }
@@ -47,14 +151,19 @@ export class EventsService {
 
         let depositPesos = 0;
         for (const p of pagos) {
-          if (p.tipo_pago === "SEÑA" || p.tipo_pago === "TOTAL" || p.tipo_pago === "SALDO") {
+          if (
+            p.tipo_pago === "SEÑA" ||
+            p.tipo_pago === "TOTAL" ||
+            p.tipo_pago === "SALDO"
+          ) {
             depositPesos += Number(p.monto) || 0;
           }
         }
 
-        const eventDateStr = r.fecha_evento instanceof Date
-          ? r.fecha_evento.toISOString().slice(0, 10)
-          : String(r.fecha_evento).slice(0, 10);
+        const eventDateStr =
+          r.fecha_evento instanceof Date
+            ? r.fecha_evento.toISOString().slice(0, 10)
+            : String(r.fecha_evento).slice(0, 10);
 
         return {
           id: `EV-${r.id_reserva}`,
@@ -70,6 +179,7 @@ export class EventsService {
             celiacos,
             vegetarianos,
             veganos,
+            hipertensos,
             alergias: alergias.join(", "),
           },
           kitchenNotes: r.notas_cocina || "",
@@ -144,7 +254,9 @@ export class EventsService {
             "temp_hash",
           ],
         );
-        idCliente = Number(insertResult.row?.id_cliente ?? insertResult.lastInsertId);
+        idCliente = Number(
+          insertResult.row?.id_cliente ?? insertResult.lastInsertId,
+        );
         if (!Number.isSafeInteger(idCliente) || idCliente <= 0) {
           throw new Error("PostgreSQL no devolvió el ID del cliente creado.");
         }
@@ -180,7 +292,9 @@ export class EventsService {
       ],
     );
 
-    const idReserva = Number(reservaResult.row?.id_reserva ?? reservaResult.lastInsertId);
+    const idReserva = Number(
+      reservaResult.row?.id_reserva ?? reservaResult.lastInsertId,
+    );
     if (!Number.isSafeInteger(idReserva) || idReserva <= 0) {
       throw new Error("PostgreSQL no devolvió el ID de la reserva creada.");
     }
@@ -202,6 +316,13 @@ export class EventsService {
         }
       }
     }
+    await persistEventStations(
+      dbClient,
+      idReserva,
+      Array.isArray(body.stationIds) ? body.stationIds : [],
+      Array.isArray(body.extraIds) ? body.extraIds : [],
+      body.guests || 50,
+    );
 
     // 4. Restricciones Alimentarias
     if (body.dietary) {
@@ -229,6 +350,18 @@ export class EventsService {
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
            VALUES (?, ?, ?, ?)`,
           [idReserva, "Veganos", body.dietary.veganos, "Menú vegano"],
+        );
+      }
+      if (body.dietary.hipertensos > 0) {
+        await dbClient.execute(
+          `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
+           VALUES (?, ?, ?, ?)`,
+          [
+            idReserva,
+            "Hipertensos",
+            body.dietary.hipertensos,
+            "Menú bajo en sodio",
+          ],
         );
       }
       if (body.dietary.alergias) {

@@ -86,7 +86,7 @@ export function ClientEditModal({
         </button>
 
         <div className="flex items-center gap-3 mb-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-subdued text-primary-deep">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-brand/15 bg-brand/10 text-brand">
             <Building2 className="w-5 h-5" />
           </div>
           <div>
@@ -210,7 +210,7 @@ export function ClientEditModal({
                 id="clientEstado"
                 value={activo}
                 onChange={(e) => setActivo(Number(e.target.value))}
-                className="w-full text-sm rounded-md border border-hairline bg-canvas px-3 py-2 text-ink shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full text-sm rounded-md border border-hairline bg-canvas px-3 py-2 text-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
               >
                 <option value={1}>Habilitado (Acceso activo)</option>
                 <option value={0}>Inhabilitado (Acceso bloqueado)</option>
@@ -236,7 +236,7 @@ export function ClientEditModal({
             <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" variant="brand" disabled={loading}>
               {loading ? 'Guardando…' : 'Guardar Cambios'}
             </Button>
           </div>
