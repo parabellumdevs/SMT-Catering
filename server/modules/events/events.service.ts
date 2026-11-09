@@ -92,17 +92,8 @@ async function persistEventStations(
 }
 
 export class EventsService {
-  static async fetchAllEvents() {
+  private static async mapReservationRows(rows: any[]) {
     const dbClient = getDatabase();
-    const rows = await dbClient.query(
-      `SELECT
-        r.*,
-        c.razon_social as cliente_empresa,
-        c.nombre_completo as contacto
-      FROM reserva r
-      JOIN cliente c ON c.id_cliente = r.id_cliente
-      ORDER BY r.fecha_evento ASC`,
-    );
 
     const events = await Promise.all(
       rows.map(async (r: any) => {
@@ -154,10 +145,14 @@ export class EventsService {
           }
         }
 
+        const eventDateStr = r.fecha_evento instanceof Date
+          ? r.fecha_evento.toISOString().slice(0, 10)
+          : String(r.fecha_evento).slice(0, 10);
+
         return {
           id: `EV-${r.id_reserva}`,
           clientName: r.cliente_empresa || r.contacto,
-          eventDate: r.fecha_evento,
+          eventDate: eventDateStr,
           guests: r.cantidad_invitados,
           stationIds: stations,
           status: r.estado_evento || "Presupuestado",
@@ -186,31 +181,67 @@ export class EventsService {
     return events;
   }
 
+  static async fetchAllEvents() {
+    const dbClient = getDatabase();
+    const rows = await dbClient.query(
+      `SELECT
+        r.*,
+        c.razon_social as cliente_empresa,
+        c.nombre_completo as contacto
+      FROM reserva r
+      JOIN cliente c ON c.id_cliente = r.id_cliente
+      ORDER BY r.fecha_evento ASC`,
+    );
+
+    return this.mapReservationRows(rows);
+  }
+
+  static async fetchEventsByClientId(clientId: number) {
+    const dbClient = getDatabase();
+    const rows = await dbClient.query(
+      `SELECT
+        r.*,
+        c.razon_social as cliente_empresa,
+        c.nombre_completo as contacto
+      FROM reserva r
+      JOIN cliente c ON c.id_cliente = r.id_cliente
+      WHERE r.id_cliente = ?
+      ORDER BY r.fecha_evento DESC`,
+      [clientId],
+    );
+
+    return this.mapReservationRows(rows);
+  }
+
   static async createEvent(body: any) {
     const dbClient = getDatabase();
 
     // 1. Cliente B2B (obtener o crear)
-    let cliente = await dbClient.queryOne(
-      "SELECT id_cliente FROM cliente WHERE razon_social = ?",
-      [body.clientName],
-    );
-    let idCliente = cliente?.id_cliente;
+    let idCliente = body.clientId ? Number(body.clientId) : undefined;
     if (!idCliente) {
-      const insertResult = await dbClient.execute(
-        `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
-         VALUES (?, ?, ?, ?, ?)
-         RETURNING id_cliente`,
-        [
-          body.clientName,
-          `30-${Date.now().toString().slice(-8)}-1`,
-          body.clientName,
-          `eventos@${body.clientName.toLowerCase().replace(/[^a-z0-9]/g, "") || "cliente"}.com`,
-          "temp_hash",
-        ],
+      const cliente = await dbClient.queryOne<any>(
+        "SELECT id_cliente FROM cliente WHERE razon_social = ?",
+        [body.clientName],
       );
-      idCliente = Number(insertResult.row?.id_cliente);
-      if (!Number.isSafeInteger(idCliente) || idCliente <= 0) {
-        throw new Error("PostgreSQL no devolvió el ID del cliente creado.");
+      idCliente = cliente?.id_cliente ? Number(cliente.id_cliente) : undefined;
+
+      if (!idCliente) {
+        const insertResult = await dbClient.execute(
+          `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
+           VALUES (?, ?, ?, ?, ?)
+           RETURNING id_cliente`,
+          [
+            body.clientName,
+            `30-${Date.now().toString().slice(-8)}-1`,
+            body.clientName,
+            `eventos@${body.clientName.toLowerCase().replace(/[^a-z0-9]/g, "") || "cliente"}.com`,
+            "temp_hash",
+          ],
+        );
+        idCliente = Number(insertResult.row?.id_cliente ?? insertResult.lastInsertId);
+        if (!Number.isSafeInteger(idCliente) || idCliente <= 0) {
+          throw new Error("PostgreSQL no devolvió el ID del cliente creado.");
+        }
       }
     }
 
@@ -243,7 +274,7 @@ export class EventsService {
       ],
     );
 
-    const idReserva = Number(reservaResult.row?.id_reserva);
+    const idReserva = Number(reservaResult.row?.id_reserva ?? reservaResult.lastInsertId);
     if (!Number.isSafeInteger(idReserva) || idReserva <= 0) {
       throw new Error("PostgreSQL no devolvió el ID de la reserva creada.");
     }
@@ -296,12 +327,17 @@ export class EventsService {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
            VALUES (?, ?, ?, ?)`,
-          [idReserva, "Alergias", 1, body.dietary.alergias],
+          [
+            idReserva,
+            "Alergias",
+            1,
+            String(body.dietary.alergias).slice(0, 200),
+          ],
         );
       }
     }
 
-    // 5. Pago inicial (seña)
+    // 5. Pago inicial (seña o total)
     if (body.depositCents > 0) {
       const isPaidInFull = body.paymentStatus === "SALDADO";
       await dbClient.execute(
@@ -336,6 +372,17 @@ export class EventsService {
     const dbClient = getDatabase();
     const idReserva = Number(rawId.replace("EV-", ""));
 
+    let endTime: string | null = null;
+    if (updates.startTime) {
+      const [hStr, mStr] = updates.startTime.split(":");
+      const h = Number(hStr);
+      const m = Number(mStr || 0);
+      if (!Number.isNaN(h)) {
+        const endH = (h + 3) % 24;
+        endTime = `${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      }
+    }
+
     await dbClient.execute(
       `UPDATE reserva
        SET
@@ -345,6 +392,7 @@ export class EventsService {
          fecha_actualizacion = CURRENT_TIMESTAMP,
          fecha_evento = COALESCE(?, fecha_evento),
          hora_inicio = COALESCE(?, hora_inicio),
+         hora_fin = COALESCE(?, hora_fin),
          evento_cancelado = COALESCE(?, evento_cancelado)
        WHERE id_reserva = ?`,
       [
@@ -353,6 +401,7 @@ export class EventsService {
         updates.kitchenNotes ?? null,
         updates.eventDate ?? null,
         updates.startTime ?? null,
+        endTime,
         updates.cancelled ?? null,
         idReserva,
       ],

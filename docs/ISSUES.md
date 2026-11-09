@@ -146,17 +146,17 @@ _(Etapa fundacional del proyecto utilizada para validar el modelo de dominio, co
 
 ## 6. Mis Eventos [Cliente]
 
-- [ ] **Listado de Eventos Propios**
+- [x] **Listado de Eventos Propios**
   - [x] Crear scaffold de la vista [`src/features/my-events/MyEventsPage.tsx`](../src/features/my-events/MyEventsPage.tsx).
   - [x] Boceto de controlador en [`EventsController.myEvents`](../server/modules/events/events.controller.ts).
-  - [ ] Registrar la ruta `/mis-eventos` en [`src/App.tsx`](../src/App.tsx), agregar enlace en [`nav-items.ts`](../src/components/layout/nav-items.ts) para el rol `cliente` y conectar el endpoint real `GET /api/events/my-events` contra PostgreSQL.
-  - [ ] Mostrar tarjetas/grilla con: fecha y horario contratado, dirección, comensales, estaciones seleccionadas y estado de cobro.
-- [ ] **Acciones Disponibles por Evento**
-  - [X] **Ver Detalle:** modal o vista con el desglose completo de la cotización y servicios.
-  - [ ] **Pagar Saldo Restante (50%):** botón para abonar el saldo pendiente (vencimiento: hasta **24 horas antes** del evento) con redirección a pasarela de pagos y actualización a `SALDADO`.
-  - [X] **Comprobantes (PDF):** descarga o previsualización del comprobante comercial / factura de los pagos efectuados.
-  - [ ] **Reprogramación:** solicitar cambio de fecha sin recargo, validando únicamente que la nueva fecha cumpla con las reglas de disponibilidad y concurrencia ($\le 60$ pax).
-  - [X] **Cancelación:** botón para solicitar cancelación del evento aplicando la política acordada:
+  - [x] Registrar la ruta `/mis-eventos` en [`src/App.tsx`](../src/App.tsx), agregar enlace en [`nav-items.ts`](../src/components/layout/nav-items.ts) para el rol `cliente` y conectar el endpoint real `GET /api/events/my-events` contra PostgreSQL.
+  - [x] Mostrar tarjetas/grilla con: fecha y horario contratado, dirección, comensales, estaciones seleccionadas y estado de cobro.
+- [x] **Acciones Disponibles por Evento**
+  - [x] **Ver Detalle:** modal o vista con el desglose completo de la cotización y servicios.
+  - [x] **Pagar Saldo Restante (50%):** botón para abonar el saldo pendiente (vencimiento: hasta **24 horas antes** del evento) con redirección a pasarela de pagos y actualización a `SALDADO`.
+  - [x] **Comprobantes (PDF):** descarga o previsualización del comprobante comercial / factura de los pagos efectuados.
+  - [x] **Reprogramación:** solicitar cambio de fecha sin recargo, validando únicamente que la nueva fecha cumpla con las reglas de disponibilidad y concurrencia ($\le 60$ pax).
+  - [x] **Cancelación:** botón para solicitar cancelación del evento aplicando la política acordada:
     - Hasta **7 días (1 semana) antes** del evento: **reintegro del 100% de la seña**.
     - Menos de **7 días antes** del evento: **sin reintegro de la seña**.
 

@@ -4,7 +4,7 @@ import { authGuard } from '../../middleware/authGuard.ts'
 
 export const eventsRouter = createRouter()
 
+eventsRouter.get('/my-events', authGuard, EventsController.myEvents)
 eventsRouter.get('/', EventsController.list)
 eventsRouter.post('/', EventsController.create)
 eventsRouter.patch('/:id', authGuard, EventsController.update)
-eventsRouter.get('/my-events', EventsController.myEvents)

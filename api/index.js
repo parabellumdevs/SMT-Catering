@@ -713,17 +713,8 @@ async function persistEventStations(dbClient, idReserva, stationIds, extraIds, g
   }));
 }
 var EventsService = class {
-  static async fetchAllEvents() {
+  static async mapReservationRows(rows) {
     const dbClient = getDatabase();
-    const rows = await dbClient.query(
-      `SELECT
-        r.*,
-        c.razon_social as cliente_empresa,
-        c.nombre_completo as contacto
-      FROM reserva r
-      JOIN cliente c ON c.id_cliente = r.id_cliente
-      ORDER BY r.fecha_evento ASC`
-    );
     const events = await Promise.all(
       rows.map(async (r) => {
         const [stationRows, dietaryRows, pagos] = await Promise.all([
@@ -769,10 +760,11 @@ var EventsService = class {
             depositPesos += Number(p.monto) || 0;
           }
         }
+        const eventDateStr = r.fecha_evento instanceof Date ? r.fecha_evento.toISOString().slice(0, 10) : String(r.fecha_evento).slice(0, 10);
         return {
           id: `EV-${r.id_reserva}`,
           clientName: r.cliente_empresa || r.contacto,
-          eventDate: r.fecha_evento,
+          eventDate: eventDateStr,
           guests: r.cantidad_invitados,
           stationIds: stations,
           status: r.estado_evento || "Presupuestado",
@@ -799,29 +791,60 @@ var EventsService = class {
     );
     return events;
   }
+  static async fetchAllEvents() {
+    const dbClient = getDatabase();
+    const rows = await dbClient.query(
+      `SELECT
+        r.*,
+        c.razon_social as cliente_empresa,
+        c.nombre_completo as contacto
+      FROM reserva r
+      JOIN cliente c ON c.id_cliente = r.id_cliente
+      ORDER BY r.fecha_evento ASC`
+    );
+    return this.mapReservationRows(rows);
+  }
+  static async fetchEventsByClientId(clientId) {
+    const dbClient = getDatabase();
+    const rows = await dbClient.query(
+      `SELECT
+        r.*,
+        c.razon_social as cliente_empresa,
+        c.nombre_completo as contacto
+      FROM reserva r
+      JOIN cliente c ON c.id_cliente = r.id_cliente
+      WHERE r.id_cliente = ?
+      ORDER BY r.fecha_evento DESC`,
+      [clientId]
+    );
+    return this.mapReservationRows(rows);
+  }
   static async createEvent(body) {
     const dbClient = getDatabase();
-    let cliente = await dbClient.queryOne(
-      "SELECT id_cliente FROM cliente WHERE razon_social = ?",
-      [body.clientName]
-    );
-    let idCliente = cliente?.id_cliente;
+    let idCliente = body.clientId ? Number(body.clientId) : void 0;
     if (!idCliente) {
-      const insertResult = await dbClient.execute(
-        `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
-         VALUES (?, ?, ?, ?, ?)
-         RETURNING id_cliente`,
-        [
-          body.clientName,
-          `30-${Date.now().toString().slice(-8)}-1`,
-          body.clientName,
-          `eventos@${body.clientName.toLowerCase().replace(/[^a-z0-9]/g, "") || "cliente"}.com`,
-          "temp_hash"
-        ]
+      const cliente = await dbClient.queryOne(
+        "SELECT id_cliente FROM cliente WHERE razon_social = ?",
+        [body.clientName]
       );
-      idCliente = Number(insertResult.row?.id_cliente);
-      if (!Number.isSafeInteger(idCliente) || idCliente <= 0) {
-        throw new Error("PostgreSQL no devolvi\xF3 el ID del cliente creado.");
+      idCliente = cliente?.id_cliente ? Number(cliente.id_cliente) : void 0;
+      if (!idCliente) {
+        const insertResult = await dbClient.execute(
+          `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
+           VALUES (?, ?, ?, ?, ?)
+           RETURNING id_cliente`,
+          [
+            body.clientName,
+            `30-${Date.now().toString().slice(-8)}-1`,
+            body.clientName,
+            `eventos@${body.clientName.toLowerCase().replace(/[^a-z0-9]/g, "") || "cliente"}.com`,
+            "temp_hash"
+          ]
+        );
+        idCliente = Number(insertResult.row?.id_cliente ?? insertResult.lastInsertId);
+        if (!Number.isSafeInteger(idCliente) || idCliente <= 0) {
+          throw new Error("PostgreSQL no devolvi\xF3 el ID del cliente creado.");
+        }
       }
     }
     const totalPesos = (body.totalCents || 0) / 100;
@@ -850,7 +873,7 @@ var EventsService = class {
         seguroPesos
       ]
     );
-    const idReserva = Number(reservaResult.row?.id_reserva);
+    const idReserva = Number(reservaResult.row?.id_reserva ?? reservaResult.lastInsertId);
     if (!Number.isSafeInteger(idReserva) || idReserva <= 0) {
       throw new Error("PostgreSQL no devolvi\xF3 el ID de la reserva creada.");
     }
@@ -899,7 +922,12 @@ var EventsService = class {
         await dbClient.execute(
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
            VALUES (?, ?, ?, ?)`,
-          [idReserva, "Alergias", 1, body.dietary.alergias]
+          [
+            idReserva,
+            "Alergias",
+            1,
+            String(body.dietary.alergias).slice(0, 200)
+          ]
         );
       }
     }
@@ -924,6 +952,16 @@ var EventsService = class {
   static async updateEvent(rawId, updates) {
     const dbClient = getDatabase();
     const idReserva = Number(rawId.replace("EV-", ""));
+    let endTime = null;
+    if (updates.startTime) {
+      const [hStr, mStr] = updates.startTime.split(":");
+      const h = Number(hStr);
+      const m = Number(mStr || 0);
+      if (!Number.isNaN(h)) {
+        const endH = (h + 3) % 24;
+        endTime = `${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      }
+    }
     await dbClient.execute(
       `UPDATE reserva
        SET
@@ -933,6 +971,7 @@ var EventsService = class {
          fecha_actualizacion = CURRENT_TIMESTAMP,
          fecha_evento = COALESCE(?, fecha_evento),
          hora_inicio = COALESCE(?, hora_inicio),
+         hora_fin = COALESCE(?, hora_fin),
          evento_cancelado = COALESCE(?, evento_cancelado)
        WHERE id_reserva = ?`,
       [
@@ -941,6 +980,7 @@ var EventsService = class {
         updates.kitchenNotes ?? null,
         updates.eventDate ?? null,
         updates.startTime ?? null,
+        endTime,
         updates.cancelled ?? null,
         idReserva
       ]
@@ -973,81 +1013,13 @@ var EventsService = class {
   }
 };
 
-// server/modules/events/events.controller.ts
-var EventsController = class {
-  static async list(_req, res) {
-    try {
-      const events = await EventsService.fetchAllEvents();
-      res.json({ events });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-  static async create(req, res) {
-    try {
-      const event = await EventsService.createEvent(req.body || {});
-      res.status(201).json({ event });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-  static async update(req, res) {
-    try {
-      const id = req.params.id;
-      if (!id) {
-        res.status(400).json({ error: "ID de reserva requerido" });
-        return;
-      }
-      const updates = req.body || {};
-      if (updates.paymentStatus === "SALDADO") {
-        if (req.user?.role !== "admin") {
-          res.status(403).json({
-            error: "Solo los administradores pueden registrar cobros de saldo."
-          });
-          return;
-        }
-      } else if (req.user?.role !== "admin" && req.user?.role !== "superadmin") {
-        res.status(403).json({ error: "No autorizado para modificar eventos." });
-        return;
-      }
-      await EventsService.updateEvent(id, updates);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-  static async myEvents(req, res) {
-    try {
-      if (!req.user) {
-        res.status(401).json({ error: "No autorizado" });
-        return;
-      }
-      const events = await EventsService.fetchAllEvents();
-      const filtered = events.filter((_e) => {
-        return true;
-      });
-      res.json({ events: filtered });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-};
-
-// server/modules/events/events.routes.ts
-var eventsRouter = createRouter();
-eventsRouter.get("/", EventsController.list);
-eventsRouter.post("/", EventsController.create);
-eventsRouter.patch("/:id", authGuard, EventsController.update);
-eventsRouter.get("/my-events", EventsController.myEvents);
-
 // server/modules/quotation/quotation.service.ts
 var QuotationService = class {
-  static async checkAvailability(date) {
+  static async checkAvailability(date, excludeReservaId) {
     const dbClient = getDatabase();
-    const result = await dbClient.queryOne(
-      "SELECT count(*) as count, sum(cantidad_invitados) as total_guests FROM reserva WHERE fecha_evento = ? AND evento_cancelado = 0",
-      [date]
-    );
+    const query = excludeReservaId ? "SELECT count(*) as count, sum(cantidad_invitados) as total_guests FROM reserva WHERE fecha_evento = ? AND evento_cancelado = 0 AND id_reserva != ?" : "SELECT count(*) as count, sum(cantidad_invitados) as total_guests FROM reserva WHERE fecha_evento = ? AND evento_cancelado = 0";
+    const params = excludeReservaId ? [date, excludeReservaId] : [date];
+    const result = await dbClient.queryOne(query, params);
     const count = Number(result?.count || 0);
     const totalGuests = Number(result?.total_guests || 0);
     if (count === 0) {
@@ -1086,6 +1058,163 @@ var QuotationService = class {
     };
   }
 };
+
+// server/modules/events/events.controller.ts
+var EventsController = class {
+  static async list(_req, res) {
+    try {
+      const events = await EventsService.fetchAllEvents();
+      res.json({ events });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+  static async create(req, res) {
+    try {
+      const user = req.user ?? extractAuthenticatedUser(req);
+      const payload = { ...req.body || {} };
+      if (user?.role === "cliente") {
+        payload.clientId = user.id;
+      }
+      const event = await EventsService.createEvent(payload);
+      res.status(201).json({ event });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+  static async update(req, res) {
+    try {
+      const id = req.params.id;
+      if (!id) {
+        res.status(400).json({ error: "ID de reserva requerido" });
+        return;
+      }
+      if (!req.user) {
+        res.status(401).json({ error: "No autenticado" });
+        return;
+      }
+      const dbClient = getDatabase();
+      const idReserva = Number(id.replace("EV-", ""));
+      const reserva = await dbClient.queryOne(
+        "SELECT * FROM reserva WHERE id_reserva = ?",
+        [idReserva]
+      );
+      if (!reserva) {
+        res.status(404).json({ error: "Reserva no encontrada" });
+        return;
+      }
+      const updates = req.body || {};
+      if (req.user.role === "cliente") {
+        if (Number(reserva.id_cliente) !== Number(req.user.id)) {
+          res.status(403).json({ error: "No autorizado para modificar esta reserva." });
+          return;
+        }
+        if (updates.eventDate) {
+          if (reserva.evento_cancelado === 1 || reserva.estado_evento === "Cancelado") {
+            res.status(400).json({ error: "No se puede reprogramar un evento cancelado." });
+            return;
+          }
+          const availability = await QuotationService.checkAvailability(updates.eventDate, idReserva);
+          if (!availability.available) {
+            res.status(400).json({
+              error: "La fecha seleccionada no tiene disponibilidad para nuevos servicios."
+            });
+            return;
+          }
+          if (availability.isConcurrent && Number(reserva.cantidad_invitados) > 60) {
+            res.status(400).json({
+              error: "La fecha seleccionada solo admite eventos concurrentes de hasta 60 comensales."
+            });
+            return;
+          }
+          await EventsService.updateEvent(id, {
+            eventDate: updates.eventDate,
+            startTime: updates.startTime
+          });
+          res.json({ success: true, eventDate: updates.eventDate, startTime: updates.startTime });
+          return;
+        }
+        if (updates.cancelled === 1 || updates.status === "Cancelado") {
+          if (reserva.evento_cancelado === 1) {
+            res.status(400).json({ error: "El evento ya se encuentra cancelado." });
+            return;
+          }
+          const eventDateObj = new Date(reserva.fecha_evento);
+          const today = /* @__PURE__ */ new Date();
+          const diffMs = eventDateObj.getTime() - today.getTime();
+          const diffDays = Math.ceil(diffMs / (1e3 * 60 * 60 * 24));
+          const refundEligible = diffDays >= 7;
+          const cancelNote = refundEligible ? `[Cancelaci\xF3n cliente: ${diffDays} d\xEDas de antelaci\xF3n \u2014 Reintegro 100% de se\xF1a]` : `[Cancelaci\xF3n cliente: ${diffDays} d\xEDas de antelaci\xF3n \u2014 Sin reintegro de se\xF1a (< 7 d\xEDas)]`;
+          await EventsService.updateEvent(id, {
+            status: "Cancelado",
+            cancelled: 1,
+            kitchenNotes: reserva.notas_cocina ? `${reserva.notas_cocina} | ${cancelNote}` : cancelNote
+          });
+          res.json({
+            success: true,
+            cancelled: true,
+            refundEligible,
+            daysNotice: diffDays,
+            message: refundEligible ? "Evento cancelado exitosamente. Se ha aprobado el reintegro del 100% de la se\xF1a." : "Evento cancelado. De acuerdo a las pol\xEDticas de contrataci\xF3n (< 7 d\xEDas de antelaci\xF3n), la se\xF1a no tiene reintegro."
+          });
+          return;
+        }
+        if (updates.paymentStatus === "SALDADO") {
+          if (reserva.evento_cancelado === 1) {
+            res.status(400).json({ error: "No se puede abonar el saldo de un evento cancelado." });
+            return;
+          }
+          await EventsService.updateEvent(id, {
+            paymentStatus: "SALDADO"
+          });
+          res.json({ success: true, paymentStatus: "SALDADO" });
+          return;
+        }
+        res.status(400).json({ error: "Acci\xF3n no permitida para el rol cliente." });
+        return;
+      }
+      if (updates.paymentStatus === "SALDADO") {
+        if (req.user.role !== "admin" && req.user.role !== "superadmin") {
+          res.status(403).json({
+            error: "Solo los administradores pueden registrar cobros de saldo."
+          });
+          return;
+        }
+      } else if (req.user.role !== "admin" && req.user.role !== "superadmin") {
+        res.status(403).json({ error: "No autorizado para modificar eventos." });
+        return;
+      }
+      await EventsService.updateEvent(id, updates);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+  static async myEvents(req, res) {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: "No autorizado" });
+        return;
+      }
+      if (req.user.role === "cliente") {
+        const events2 = await EventsService.fetchEventsByClientId(req.user.id);
+        res.json({ events: events2 });
+        return;
+      }
+      const events = await EventsService.fetchAllEvents();
+      res.json({ events });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+};
+
+// server/modules/events/events.routes.ts
+var eventsRouter = createRouter();
+eventsRouter.get("/my-events", authGuard, EventsController.myEvents);
+eventsRouter.get("/", EventsController.list);
+eventsRouter.post("/", EventsController.create);
+eventsRouter.patch("/:id", authGuard, EventsController.update);
 
 // server/modules/quotation/quotation.controller.ts
 var QuotationController = class {
