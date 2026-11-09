@@ -1,12 +1,16 @@
 import { getDatabase } from '../../db/client.ts'
 
 export class QuotationService {
-  static async checkAvailability(date: string): Promise<{ available: boolean; isConcurrent: boolean }> {
+  static async checkAvailability(
+    date: string,
+    excludeReservaId?: number,
+  ): Promise<{ available: boolean; isConcurrent: boolean }> {
     const dbClient = getDatabase()
-    const result = await dbClient.queryOne(
-      "SELECT count(*) as count, sum(cantidad_invitados) as total_guests FROM reserva WHERE fecha_evento = ? AND evento_cancelado = 0",
-      [date],
-    )
+    const query = excludeReservaId
+      ? "SELECT count(*) as count, sum(cantidad_invitados) as total_guests FROM reserva WHERE fecha_evento = ? AND evento_cancelado = 0 AND id_reserva != ?"
+      : "SELECT count(*) as count, sum(cantidad_invitados) as total_guests FROM reserva WHERE fecha_evento = ? AND evento_cancelado = 0"
+    const params = excludeReservaId ? [date, excludeReservaId] : [date]
+    const result = await dbClient.queryOne(query, params)
 
     const count = Number(result?.count || 0)
     const totalGuests = Number(result?.total_guests || 0)
