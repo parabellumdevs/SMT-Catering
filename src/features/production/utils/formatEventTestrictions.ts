@@ -22,6 +22,13 @@ export function formatEventRestrictions(event: EventRecord): string {
       dietary.veganos === 1 ? "1 vegano" : `${dietary.veganos} veganos`,
     );
   }
+  if (dietary.hipertensos > 0) {
+    parts.push(
+      dietary.hipertensos === 1
+        ? "1 hipertenso"
+        : `${dietary.hipertensos} hipertensos`,
+    );
+  }
   if (dietary.alergias) {
     parts.push(`alergias: ${dietary.alergias}`);
   }

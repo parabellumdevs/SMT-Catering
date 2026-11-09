@@ -751,12 +751,14 @@ var EventsService = class {
         let celiacos = 0;
         let vegetarianos = 0;
         let veganos = 0;
+        let hipertensos = 0;
         const alergias = [];
         for (const d of dietaryRows) {
           const tipo = (d.tipo_restriccion || "").toLowerCase();
           if (tipo.includes("celia")) celiacos += d.cantidad_personas;
           else if (tipo.includes("vege")) vegetarianos += d.cantidad_personas;
           else if (tipo.includes("vega")) veganos += d.cantidad_personas;
+          else if (tipo.includes("hipertens")) hipertensos += d.cantidad_personas;
           else if (tipo.includes("alerg")) {
             if (d.observaciones) alergias.push(d.observaciones);
           }
@@ -781,6 +783,7 @@ var EventsService = class {
             celiacos,
             vegetarianos,
             veganos,
+            hipertensos,
             alergias: alergias.join(", ")
           },
           kitchenNotes: r.notas_cocina || "",
@@ -883,6 +886,13 @@ var EventsService = class {
           `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
            VALUES (?, ?, ?, ?)`,
           [idReserva, "Veganos", body.dietary.veganos, "Men\xFA vegano"]
+        );
+      }
+      if (body.dietary.hipertensos > 0) {
+        await dbClient.execute(
+          `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
+           VALUES (?, ?, ?, ?)`,
+          [idReserva, "Hipertensos", body.dietary.hipertensos, "Men\xFA bajo en sodio"]
         );
       }
       if (body.dietary.alergias) {
